@@ -19,6 +19,24 @@ export async function searchFood(query) {
     .slice(0, 10);
 }
 
+// ── Open Food Facts — Barcode Lookup ─────────────────────
+export async function lookupBarcode(barcode) {
+  const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+  if (!res.ok) throw new Error('Netzwerkfehler');
+  const data = await res.json();
+  if (data.status !== 1 || !data.product) throw new Error('Produkt nicht gefunden');
+  const p = data.product;
+  return {
+    name:         p.product_name || p.product_name_de || 'Unbekanntes Produkt',
+    brand:        p.brands ?? '',
+    quantity:     p.quantity ?? '',
+    kcal_100g:    Math.round(p.nutriments?.['energy-kcal_100g'] ?? 0),
+    protein_100g: Math.round((p.nutriments?.['proteins_100g'] ?? 0) * 10) / 10,
+    carbs_100g:   Math.round((p.nutriments?.['carbohydrates_100g'] ?? 0) * 10) / 10,
+    fat_100g:     Math.round((p.nutriments?.['fat_100g'] ?? 0) * 10) / 10,
+  };
+}
+
 // ── Claude API — Recipe Generator ────────────────────────
 export async function generateRecipe(apiKey, { kcal, preference, meals = 1 }) {
   const prompt = `Erstelle ${meals === 1 ? 'ein Rezept' : `${meals} Rezepte`} für insgesamt ca. ${kcal} Kalorien (${preference}).

@@ -110,7 +110,7 @@ export async function renderDashboard(container) {
       ${log.entries.length === 0
         ? `<div class="empty-state">
             <div class="empty-icon">🍽️</div>
-            <p>Noch nichts geloggt.<br>Tippe auf „Loggen" um anzufangen.</p>
+            <p>Noch nichts getrackt.<br>Tippe auf „Tracken" um anzufangen.</p>
           </div>`
         : `<div class="card" id="entry-list">
             ${log.entries.map(e => entryRow(e)).join('')}
@@ -120,7 +120,7 @@ export async function renderDashboard(container) {
     ${log.entries.length > 0 ? `
     <div class="section" style="padding-top:0">
       <button class="btn btn-ghost btn-sm" id="btn-add-more" style="width:100%">
-        + Weitere Mahlzeit loggen
+        + Weitere Mahlzeit tracken
       </button>
     </div>` : ''}
 
