@@ -8,10 +8,10 @@ export async function searchFood(query) {
   return (data.products ?? [])
     .filter(p => p.product_name && p.nutriments?.['energy-kcal_100g'] != null)
     .map(p => ({
-      name:        p.product_name,
-      brand:       p.brands ?? '',
-      quantity:    p.quantity ?? '',
-      kcal_100g:   Math.round(p.nutriments['energy-kcal_100g'] ?? 0),
+      name:         p.product_name,
+      brand:        p.brands ?? '',
+      quantity:     p.quantity ?? '',
+      kcal_100g:    Math.round(p.nutriments['energy-kcal_100g'] ?? 0),
       protein_100g: Math.round((p.nutriments['proteins_100g'] ?? 0) * 10) / 10,
       carbs_100g:   Math.round((p.nutriments['carbohydrates_100g'] ?? 0) * 10) / 10,
       fat_100g:     Math.round((p.nutriments['fat_100g'] ?? 0) * 10) / 10,
@@ -38,8 +38,13 @@ export async function lookupBarcode(barcode) {
 }
 
 // ── Claude API — Recipe Generator ────────────────────────
-export async function generateRecipe(apiKey, { kcal, preference, meals = 1 }) {
-  const prompt = `Erstelle ${meals === 1 ? 'ein Rezept' : `${meals} Rezepte`} für insgesamt ca. ${kcal} Kalorien (${preference}).
+export async function generateRecipe(apiKey, { kcal, preference, meals = 1, phase = null }) {
+  let phaseText = '';
+  if (phase) {
+    phaseText = `\nErnährungsphase: ${phase.label} — ${phase.desc}. Makroziele: Protein ${phase.macros.protein}%, Kohlenhydrate ${phase.macros.carbs}%, Fett ${phase.macros.fat}%.`;
+  }
+
+  const prompt = `Erstelle ${meals === 1 ? 'ein Rezept' : `${meals} Rezepte`} für insgesamt ca. ${kcal} Kalorien (${preference}).${phaseText}
 Antworte NUR mit validem JSON — kein Markdown, kein erklärender Text davor oder danach.
 Format für ein Rezept:
 {"name":"Rezeptname","zutaten":[{"name":"Zutat","menge":100,"einheit":"g","kcal":150}],"anleitung":"Kochschritte als Text","gesamt_kcal":${kcal}}

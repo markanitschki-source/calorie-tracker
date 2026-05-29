@@ -1,9 +1,13 @@
-import { getSettings, saveSettings } from '../db.js';
+import { getSettings, saveSettings, PHASES } from '../db.js';
 import { showToast, refresh } from '../app.js';
+
+let selectedPhase = 'ausgewogen';
 
 export async function renderSettings(container) {
   const settings = await getSettings();
+  selectedPhase  = settings.phase ?? 'ausgewogen';
   const total    = (settings.dailyGoal ?? 2000) + (settings.activityKcal ?? 0);
+  const phase    = PHASES.find(p => p.id === selectedPhase) ?? PHASES[0];
 
   container.innerHTML = `
     <header class="view-header">
@@ -13,8 +17,26 @@ export async function renderSettings(container) {
       </div>
     </header>
 
-    <!-- Kalorienziel -->
+    <!-- Ernährungsphase -->
     <div class="section">
+      <div class="section-label">Ernährungsphase</div>
+      <div class="card">
+        <div style="padding:12px 12px 0">
+          <div class="pill-tabs" style="flex-wrap:wrap;gap:6px">
+            ${PHASES.map(p => `
+              <button class="pill ${p.id === selectedPhase ? 'active' : ''}" data-phase="${p.id}" style="font-size:13px">
+                ${p.label}
+              </button>`).join('')}
+          </div>
+        </div>
+        <div id="phase-details" style="padding:10px 14px 14px">
+          ${phaseDetails(phase)}
+        </div>
+      </div>
+    </div>
+
+    <!-- Kalorienziel -->
+    <div class="section" style="padding-top:0">
       <div class="section-label">Kalorienziel & Verbrauch</div>
       <div class="card">
         <div class="settings-row">
@@ -38,7 +60,7 @@ export async function renderSettings(container) {
     </div>
 
     <!-- API Key -->
-    <div class="section">
+    <div class="section" style="padding-top:0">
       <div class="section-label">KI-Rezepte (Claude API)</div>
       <div class="card">
         <div class="settings-row">
@@ -57,19 +79,19 @@ export async function renderSettings(container) {
       </div>
     </div>
 
-    <div class="section">
+    <div class="section" style="padding-top:0">
       <button class="btn btn-primary" id="btn-save">Einstellungen speichern</button>
     </div>
 
     <!-- App Info -->
-    <div class="section">
+    <div class="section" style="padding-top:0">
       <div class="section-label">App-Info</div>
       <div class="card">
         <div class="card-row">
           <div class="card-icon" style="background:var(--accent-dim);color:var(--accent)">📱</div>
           <div class="card-body">
             <div class="card-title">KaloTrack</div>
-            <div class="card-subtitle">Version 2.0 · PWA</div>
+            <div class="card-subtitle">Version 3.0 · PWA</div>
           </div>
         </div>
         <div class="card-row">
@@ -90,7 +112,7 @@ export async function renderSettings(container) {
     </div>
 
     <!-- Daten löschen -->
-    <div class="section">
+    <div class="section" style="padding-top:0">
       <div class="section-label">Daten</div>
       <div class="card">
         <div class="settings-row">
@@ -102,7 +124,7 @@ export async function renderSettings(container) {
     </div>
 
     <!-- PWA Install -->
-    <div id="install-banner" class="section" style="display:none">
+    <div id="install-banner" class="section" style="display:none;padding-top:0">
       <div class="card" style="padding:16px;background:var(--accent-dim);border-color:var(--accent)">
         <div style="font-size:15px;font-weight:700;margin-bottom:6px">App installieren</div>
         <div style="font-size:13px;color:var(--text-2);margin-bottom:12px">
@@ -112,6 +134,17 @@ export async function renderSettings(container) {
       </div>
     </div>
   `;
+
+  // Phase pills
+  container.querySelectorAll('[data-phase]').forEach(pill => {
+    pill.addEventListener('click', () => {
+      selectedPhase = pill.dataset.phase;
+      container.querySelectorAll('[data-phase]').forEach(p =>
+        p.classList.toggle('active', p.dataset.phase === selectedPhase));
+      const p = PHASES.find(ph => ph.id === selectedPhase) ?? PHASES[0];
+      container.querySelector('#phase-details').innerHTML = phaseDetails(p);
+    });
+  });
 
   const goalInput     = container.querySelector('#goal-input');
   const activityInput = container.querySelector('#activity-input');
@@ -131,7 +164,13 @@ export async function renderSettings(container) {
     const goal     = parseInt(goalInput.value);
     const activity = parseInt(activityInput.value) || 0;
     if (!goal || goal < 100 || goal > 20000) { showToast('Ungültiges Kalorienziel'); return; }
-    await saveSettings({ ...settings, dailyGoal: goal, activityKcal: activity, apiKey: container.querySelector('#api-key-input').value.trim() });
+    await saveSettings({
+      ...settings,
+      dailyGoal:   goal,
+      activityKcal: activity,
+      apiKey:      container.querySelector('#api-key-input').value.trim(),
+      phase:       selectedPhase,
+    });
     showToast('Einstellungen gespeichert ✓');
     refresh();
   });
@@ -141,7 +180,7 @@ export async function renderSettings(container) {
     const { clear } = await import('https://cdn.jsdelivr.net/npm/idb-keyval@6/+esm');
     const s = await getSettings();
     await clear();
-    await saveSettings({ dailyGoal: s.dailyGoal, apiKey: s.apiKey, activityKcal: 0 });
+    await saveSettings({ dailyGoal: s.dailyGoal, apiKey: s.apiKey, activityKcal: 0, phase: s.phase ?? 'ausgewogen' });
     showToast('Daten gelöscht');
     refresh();
   });
@@ -158,6 +197,25 @@ export async function renderSettings(container) {
       }
     });
   }
+}
+
+function phaseDetails(phase) {
+  return `
+    <div style="font-size:13px;color:var(--text-2);margin-bottom:8px">${phase.desc}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span style="font-size:12px;padding:3px 8px;border-radius:99px;background:var(--orange-dim);color:var(--orange)">
+        Protein ${phase.macros.protein}%
+      </span>
+      <span style="font-size:12px;padding:3px 8px;border-radius:99px;background:var(--accent-dim);color:var(--accent)">
+        Kohlenhydrate ${phase.macros.carbs}%
+      </span>
+      <span style="font-size:12px;padding:3px 8px;border-radius:99px;background:var(--surface-3);color:var(--text-2)">
+        Fett ${phase.macros.fat}%
+      </span>
+      <span style="font-size:12px;padding:3px 8px;border-radius:99px;background:var(--green-dim);color:var(--green)">
+        ${phase.proteinPerKg}g Protein/kg Körpergewicht
+      </span>
+    </div>`;
 }
 
 function mealSplitText(total) {

@@ -1,14 +1,15 @@
-import { getTodayLog, sumLog, sumByMeal, entriesByMeal, getWeekLogs, getSettings, removeFoodEntry } from '../db.js';
+import { getTodayLog, sumLog, sumByMeal, entriesByMeal, getWeekLogs, getSettings, getLogForDate, removeFoodEntry, PHASES } from '../db.js';
 import { navigate, showToast, refresh } from '../app.js';
 
 const RING_R    = 75;
 const RING_CIRC = 2 * Math.PI * RING_R;
 
 const MEALS = [
-  { key: 'fruehstueck', label: 'Frühstück',   icon: '🌅', pct: 0.25 },
-  { key: 'mittagessen', label: 'Mittagessen',  icon: '☀️', pct: 0.35 },
-  { key: 'abendessen',  label: 'Abendessen',   icon: '🌙', pct: 0.30 },
-  { key: 'snack',       label: 'Snacks',       icon: '🍎', pct: 0.10 },
+  { key: 'fruehstueck', label: 'Frühstück',  icon: '🌅', pct: 0.25 },
+  { key: 'mittagessen', label: 'Mittagessen', icon: '☀️', pct: 0.35 },
+  { key: 'abendessen',  label: 'Abendessen',  icon: '🌙', pct: 0.30 },
+  { key: 'snack',       label: 'Snacks',      icon: '🍎', pct: 0.10 },
+  { key: 'getraenke',   label: 'Getränke',    icon: '🥤', pct: 0     },
 ];
 
 function dateLabel() {
@@ -39,19 +40,37 @@ function entryKcal(e) {
   return Math.round((e.kcal_100g ?? e.kcal ?? 0) * (e.amount ?? 100) / 100);
 }
 
+function yesterday() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().split('T')[0];
+}
+
 export async function renderDashboard(container) {
-  const [log, settings, weekLogs] = await Promise.all([
-    getTodayLog(), getSettings(), getWeekLogs(),
+  const [log, settings, weekLogs, yesterdayLog] = await Promise.all([
+    getTodayLog(), getSettings(), getWeekLogs(), getLogForDate(yesterday()),
   ]);
 
+  const phase       = PHASES.find(p => p.id === (settings.phase ?? 'ausgewogen')) ?? PHASES[0];
   const totals      = sumLog(log);
   const byMeal      = entriesByMeal(log);
   const mealKcal    = sumByMeal(log);
   const totalBudget = settings.dailyGoal + (settings.activityKcal ?? 0);
   const remaining   = totalBudget - totals.kcal;
-  const proteinGoal = Math.round(totalBudget * 0.25 / 4);
-  const carbsGoal   = Math.round(totalBudget * 0.50 / 4);
-  const fatGoal     = Math.round(totalBudget * 0.25 / 9);
+
+  // Phase-based macro goals
+  const proteinGoal = Math.round(totalBudget * phase.macros.protein / 100 / 4);
+  const carbsGoal   = Math.round(totalBudget * phase.macros.carbs   / 100 / 4);
+  const fatGoal     = Math.round(totalBudget * phase.macros.fat     / 100 / 9);
+
+  // Yesterday surplus for compensation banner
+  const yesterdayTotals  = sumLog(yesterdayLog);
+  const yesterdaySurplus = yesterdayTotals.kcal > 50
+    ? Math.max(0, yesterdayTotals.kcal - settings.dailyGoal)
+    : 0;
+  const compensation = Math.min(Math.round(yesterdaySurplus / 2), 300);
+
+  const isOverToday = totals.kcal > totalBudget;
 
   container.innerHTML = `
     <header class="view-header">
@@ -60,6 +79,22 @@ export async function renderDashboard(container) {
         <div class="subtitle">${dateLabel()}</div>
       </div>
     </header>
+
+    ${yesterdaySurplus > 50 ? `
+    <div class="section" style="padding-bottom:0">
+      <div style="background:var(--orange-dim);border:1px solid var(--orange);border-radius:var(--radius-sm);padding:10px 14px;font-size:13px">
+        <span style="color:var(--orange);font-weight:700">⚖️ Gestern ${yesterdaySurplus} kcal zu viel</span>
+        <span style="color:var(--text-2)"> — heute ${compensation} kcal weniger empfohlen (${totalBudget - compensation} kcal)</span>
+      </div>
+    </div>` : ''}
+
+    ${isOverToday ? `
+    <div class="section" style="padding-bottom:0">
+      <div style="background:var(--red-dim);border:1px solid var(--red);border-radius:var(--radius-sm);padding:10px 14px;font-size:13px">
+        <span style="color:var(--red);font-weight:700">🔴 Tagesziel überschritten!</span>
+        <span style="color:var(--text-2)"> ${Math.abs(Math.round(remaining))} kcal über Budget</span>
+      </div>
+    </div>` : ''}
 
     <!-- Kalorienring -->
     <div class="calorie-ring-wrap">
@@ -85,8 +120,16 @@ export async function renderDashboard(container) {
         ${weekLogs.map((d, i) => {
           const isToday = i === 6;
           const hasData = d.sum.kcal > 50;
-          return `<div class="day-dot ${isToday ? 'today' : hasData ? 'filled' : ''}"></div>`;
+          const isOver  = hasData && d.sum.kcal > settings.dailyGoal;
+          let cls = '';
+          if (isToday)  cls = 'today';
+          else if (isOver) cls = 'over-day';
+          else if (hasData) cls = 'filled';
+          return `<div class="day-dot ${cls}" title="${d.date}: ${d.sum.kcal} kcal"></div>`;
         }).join('')}
+      </div>
+      <div style="font-size:11px;color:var(--text-3);text-align:center;margin-top:4px">
+        Phase: <strong style="color:var(--accent)">${phase.label}</strong> · P${phase.macros.protein}% K${phase.macros.carbs}% F${phase.macros.fat}%
       </div>
     </div>
 
@@ -113,11 +156,14 @@ export async function renderDashboard(container) {
     <div class="section">
       <div class="section-label">Tagesübersicht</div>
       ${MEALS.map(m => {
-        const target   = Math.round(totalBudget * m.pct);
+        const target   = m.pct > 0 ? Math.round(totalBudget * m.pct) : null;
         const consumed = mealKcal[m.key] ?? 0;
         const entries  = byMeal[m.key] ?? [];
-        const pct      = Math.min(consumed / target * 100, 100);
-        const over     = consumed > target;
+        const pct      = target ? Math.min(consumed / target * 100, 100) : 0;
+        const over     = target && consumed > target;
+
+        if (m.pct === 0 && entries.length === 0) return '';
+
         return `
         <div class="meal-section card" style="margin-bottom:10px">
           <div class="meal-header" data-meal="${m.key}" style="cursor:pointer">
@@ -125,13 +171,14 @@ export async function renderDashboard(container) {
               <span style="font-size:20px">${m.icon}</span>
               <div style="flex:1">
                 <div style="font-size:14px;font-weight:600">${m.label}</div>
+                ${target ? `
                 <div style="height:4px;background:var(--surface-3);border-radius:2px;margin-top:5px;overflow:hidden">
                   <div style="height:100%;width:${pct}%;background:${over ? 'var(--red)' : 'var(--accent)'};border-radius:2px;transition:width 0.5s ease"></div>
-                </div>
+                </div>` : ''}
               </div>
               <div style="text-align:right;flex-shrink:0">
                 <div style="font-size:15px;font-weight:700;color:${over ? 'var(--red)' : 'var(--accent)'}">
-                  ${consumed} <span style="font-size:11px;font-weight:400;color:var(--text-3)">/ ${target}</span>
+                  ${consumed}${target ? ` <span style="font-size:11px;font-weight:400;color:var(--text-3)">/ ${target}</span>` : ''}
                 </div>
                 <div style="font-size:11px;color:var(--text-3)">kcal</div>
               </div>
@@ -168,10 +215,11 @@ export async function renderDashboard(container) {
             <div class="card-subtitle">
               ${settings.dailyGoal} Basis
               ${settings.activityKcal ? ` + ${settings.activityKcal} Aktivität` : ''}
+              ${compensation > 0 ? ` · −${compensation} Ausgleich empfohlen` : ''}
             </div>
           </div>
           <div class="card-right">
-            <div class="card-kcal">${Math.round(totals.kcal / totalBudget * 100)}%</div>
+            <div class="card-kcal" style="color:${isOverToday ? 'var(--red)' : 'inherit'}">${Math.round(totals.kcal / totalBudget * 100)}%</div>
             <div class="card-kcal-label">erreicht</div>
           </div>
         </div>

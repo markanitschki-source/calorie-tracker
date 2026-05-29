@@ -9,6 +9,7 @@ const MEAL_TYPES = [
   { key: 'mittagessen', label: 'Mittagessen', icon: '☀️' },
   { key: 'abendessen',  label: 'Abendessen',  icon: '🌙' },
   { key: 'snack',       label: 'Snack',       icon: '🍎' },
+  { key: 'getraenke',   label: 'Getränke',    icon: '🥤' },
 ];
 
 export async function renderFoodLog(container) {
@@ -26,7 +27,7 @@ export async function renderFoodLog(container) {
     <!-- Mahlzeit wählen -->
     <div class="section">
       <div class="section-label">Für welche Mahlzeit?</div>
-      <div class="pill-tabs" style="padding:0 0 4px">
+      <div class="pill-tabs" style="padding:0 0 4px;flex-wrap:wrap">
         ${MEAL_TYPES.map(m => `
           <button class="pill meal-pill ${m.key === preselected ? 'active' : ''}" data-meal="${m.key}">
             ${m.icon} ${m.label}
@@ -156,30 +157,37 @@ function openScannerModal(resultsEl, getMeal) {
     document.getElementById('modal-overlay').addEventListener('click', stopScan, { once: true });
 
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then(s => {
+      .then(async s => {
         stream = s;
         video.srcObject = s;
         video.play();
 
-        if ('BarcodeDetector' in window) {
-          const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39'] });
-          const scan = async () => {
-            if (!scanning) return;
-            try {
-              const codes = await detector.detect(video);
-              if (codes.length > 0) {
-                stopScan();
-                await handleBarcode(codes[0].rawValue, resultsEl, getMeal);
-                closeModal();
-                return;
-              }
-            } catch (_) {}
-            animFrame = requestAnimationFrame(scan);
-          };
-          video.addEventListener('loadeddata', scan, { once: true });
-        } else {
-          statusEl.textContent = 'BarcodeDetector nicht unterstützt — bitte manuell suchen';
+        // Load polyfill if native BarcodeDetector is unavailable
+        if (!('BarcodeDetector' in window)) {
+          try {
+            const mod = await import('https://cdn.jsdelivr.net/npm/@undecaf/barcode-detector-polyfill@0.9.21/dist/es/index.js');
+            window.BarcodeDetector = mod.BarcodeDetectorPolyfill;
+          } catch {
+            statusEl.textContent = 'Scanner nicht unterstützt — bitte manuell suchen';
+            return;
+          }
         }
+
+        const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39'] });
+        const scan = async () => {
+          if (!scanning) return;
+          try {
+            const codes = await detector.detect(video);
+            if (codes.length > 0) {
+              stopScan();
+              await handleBarcode(codes[0].rawValue, resultsEl, getMeal);
+              closeModal();
+              return;
+            }
+          } catch (_) {}
+          animFrame = requestAnimationFrame(scan);
+        };
+        video.addEventListener('loadeddata', scan, { once: true });
       })
       .catch(() => { statusEl.textContent = '⚠️ Kamera-Zugriff verweigert'; });
   });
@@ -270,4 +278,6 @@ const quickAddItems = [
   { name: 'Naturjoghurt',       portion: '3,5% Fett',           kcal_100g: 61,  protein_100g: 4,   carbs_100g: 4,  fat_100g: 4   },
   { name: 'Lachs',              portion: 'Filet',               kcal_100g: 208, protein_100g: 20,  carbs_100g: 0,  fat_100g: 13  },
   { name: 'Reis (gekocht)',     portion: 'Basmati / Langkorn',  kcal_100g: 130, protein_100g: 3,   carbs_100g: 28, fat_100g: 0.3 },
+  { name: 'Wasser',             portion: 'Kalorienfrei',        kcal_100g: 0,   protein_100g: 0,   carbs_100g: 0,  fat_100g: 0   },
+  { name: 'Orangensaft',        portion: 'Frisch gepresst',     kcal_100g: 45,  protein_100g: 0.7, carbs_100g: 10, fat_100g: 0.2 },
 ];

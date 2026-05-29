@@ -372,8 +372,9 @@
   background: var(--surface-3);
 }
 
-.day-dot.filled { background: var(--accent); }
-.day-dot.today { background: var(--green); }
+.day-dot.filled   { background: var(--accent); }
+.day-dot.today    { background: var(--green); }
+.day-dot.over-day { background: var(--red); }
 
 /* ── AI Generator Form ─────────────────────────────────── */
 .gen-form {

@@ -2,9 +2,61 @@ import { get, set, del, keys } from 'https://cdn.jsdelivr.net/npm/idb-keyval@6/+
 
 const today = () => new Date().toISOString().split('T')[0];
 
+// ── Nutrition Phases ──────────────────────────────────────
+export const PHASES = [
+  {
+    id: 'ausgewogen',
+    label: 'Ausgewogen',
+    desc: 'Ausgewogene Ernährung · Gesundheit & Wohlbefinden',
+    macros: { protein: 25, carbs: 50, fat: 25 },
+    offset: 0,
+    proteinPerKg: 1.6,
+  },
+  {
+    id: 'abnehmen',
+    label: 'Abnehmen',
+    desc: 'Moderates Defizit · Proteinreich für Muskelerhalt',
+    macros: { protein: 35, carbs: 40, fat: 25 },
+    offset: -300,
+    proteinPerKg: 2.0,
+  },
+  {
+    id: 'schnell-abnehmen',
+    label: 'Schnell abnehmen',
+    desc: 'Deutliches Defizit · Sehr proteinreich',
+    macros: { protein: 40, carbs: 30, fat: 30 },
+    offset: -500,
+    proteinPerKg: 2.2,
+  },
+  {
+    id: 'muskelaufbau',
+    label: 'Muskelaufbau',
+    desc: 'Leichter Überschuss · Maximale Proteinzufuhr',
+    macros: { protein: 35, carbs: 45, fat: 20 },
+    offset: 200,
+    proteinPerKg: 2.4,
+  },
+  {
+    id: 'low-carb',
+    label: 'Low-Carb',
+    desc: 'Wenig Kohlenhydrate · Mehr Fett & Protein',
+    macros: { protein: 30, carbs: 20, fat: 50 },
+    offset: 0,
+    proteinPerKg: 1.8,
+  },
+  {
+    id: 'keto',
+    label: 'Keto',
+    desc: 'Minimal Kohlenhydrate · Hoher Fettanteil',
+    macros: { protein: 25, carbs: 5, fat: 70 },
+    offset: 0,
+    proteinPerKg: 1.8,
+  },
+];
+
 // ── Settings ──────────────────────────────────────────────
 export async function getSettings() {
-  const defaults = { dailyGoal: 2000, apiKey: '', activityKcal: 0 };
+  const defaults = { dailyGoal: 2000, apiKey: '', activityKcal: 0, phase: 'ausgewogen' };
   return { ...defaults, ...(await get('settings')) };
 }
 
@@ -38,18 +90,21 @@ export async function removeFoodEntry(id) {
 
 export function sumLog(log) {
   return log.entries.reduce(
-    (acc, e) => ({
-      kcal:    acc.kcal    + (e.kcal    ?? 0),
-      protein: acc.protein + (e.protein ?? 0),
-      carbs:   acc.carbs   + (e.carbs   ?? 0),
-      fat:     acc.fat     + (e.fat     ?? 0),
-    }),
+    (acc, e) => {
+      const g = e.amount ?? 100;
+      return {
+        kcal:    acc.kcal    + Math.round((e.kcal_100g    ?? e.kcal    ?? 0) * g / 100),
+        protein: acc.protein + Math.round((e.protein_100g ?? e.protein ?? 0) * g / 100 * 10) / 10,
+        carbs:   acc.carbs   + Math.round((e.carbs_100g   ?? e.carbs   ?? 0) * g / 100 * 10) / 10,
+        fat:     acc.fat     + Math.round((e.fat_100g     ?? e.fat     ?? 0) * g / 100 * 10) / 10,
+      };
+    },
     { kcal: 0, protein: 0, carbs: 0, fat: 0 }
   );
 }
 
 export function sumByMeal(log) {
-  const result = { fruehstueck: 0, mittagessen: 0, abendessen: 0, snack: 0, unset: 0 };
+  const result = { fruehstueck: 0, mittagessen: 0, abendessen: 0, snack: 0, getraenke: 0, unset: 0 };
   for (const e of log.entries) {
     const kcal = Math.round((e.kcal_100g ?? e.kcal ?? 0) * (e.amount ?? 100) / 100);
     const key  = e.meal_type ?? 'unset';
@@ -59,7 +114,7 @@ export function sumByMeal(log) {
 }
 
 export function entriesByMeal(log) {
-  const result = { fruehstueck: [], mittagessen: [], abendessen: [], snack: [], unset: [] };
+  const result = { fruehstueck: [], mittagessen: [], abendessen: [], snack: [], getraenke: [], unset: [] };
   for (const e of log.entries) {
     const key = e.meal_type ?? 'unset';
     (result[key] ?? result.unset).push(e);
@@ -73,7 +128,7 @@ export async function getSavedMeals() {
 }
 
 export async function saveMeal(meal) {
-  const meals = await getSavedMeals();
+  const meals   = await getSavedMeals();
   const updated = [{ ...meal, id: Date.now(), favorite: false }, ...meals].slice(0, 50);
   await set('saved_meals', updated);
 }
@@ -139,4 +194,27 @@ export async function getWeekLogs() {
     days.push({ date, sum: sumLog(log) });
   }
   return days;
+}
+
+// ── Body Data ──────────────────────────────────────────────
+export async function getBodyData() {
+  return (await get('body_data')) ?? { weightKg: null, heightCm: null, targetWeightKg: null };
+}
+
+export async function saveBodyData(data) {
+  await set('body_data', data);
+}
+
+export async function addWeightEntry(weightKg) {
+  const date    = today();
+  const history = await getWeightHistory();
+  const updated = history.filter(e => e.date !== date);
+  updated.push({ date, weightKg });
+  updated.sort((a, b) => a.date.localeCompare(b.date));
+  await set('weight_history', updated.slice(-90));
+  await set('body_data', { ...(await getBodyData()), weightKg });
+}
+
+export async function getWeightHistory() {
+  return (await get('weight_history')) ?? [];
 }

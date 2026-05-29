@@ -1,4 +1,4 @@
-const CACHE = 'kalotrack-v3';
+const CACHE = 'kalotrack-v4';
 const ASSETS = [
   '/',
   '/index.html',
@@ -12,6 +12,7 @@ const ASSETS = [
   '/js/views/foodlog.js',
   '/js/views/recipes.js',
   '/js/views/shopping.js',
+  '/js/views/body.js',
   '/js/views/settings.js',
 ];
 
@@ -32,7 +33,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   // Network-first for API calls, cache-first for assets
   const url = new URL(e.request.url);
-  const isApi = url.hostname.includes('openfoodfacts') || url.hostname.includes('anthropic');
+  const isApi = url.hostname.includes('openfoodfacts') || url.hostname.includes('anthropic') || url.hostname.includes('jsdelivr');
 
   if (isApi) {
     e.respondWith(fetch(e.request).catch(() => new Response('{}', { headers: { 'Content-Type': 'application/json' } })));

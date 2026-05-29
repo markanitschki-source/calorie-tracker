@@ -1,5 +1,5 @@
 import { generateRecipe }    from '../api.js';
-import { getSettings, saveMeal, getSavedMeals, deleteMeal, updateMeal, toggleFavorite, addShoppingItems } from '../db.js';
+import { getSettings, saveMeal, getSavedMeals, deleteMeal, updateMeal, toggleFavorite, addShoppingItems, getLogForDate, sumLog, PHASES } from '../db.js';
 import { showToast, navigate, openModal, closeModal } from '../app.js';
 
 const PREFERENCES = [
@@ -14,12 +14,28 @@ const PREFERENCES = [
 let selectedPref     = 'ausgewogen';
 let generatedRecipes = [];
 
+function yesterday() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().split('T')[0];
+}
+
 export async function renderRecipes(container) {
-  const settings = await getSettings();
-  const saved    = await getSavedMeals();
+  const [settings, saved, yesterdayLog] = await Promise.all([
+    getSettings(), getSavedMeals(), getLogForDate(yesterday()),
+  ]);
   const hasKey   = !!settings.apiKey;
   const favorites = saved.filter(m => m.favorite);
   const others    = saved.filter(m => !m.favorite);
+
+  const phase          = PHASES.find(p => p.id === (settings.phase ?? 'ausgewogen')) ?? PHASES[0];
+  const yesterdayKcal  = sumLog(yesterdayLog).kcal;
+  const yesterdaySurplus = yesterdayKcal > 50
+    ? Math.max(0, yesterdayKcal - settings.dailyGoal)
+    : 0;
+  const recommendedKcal = yesterdaySurplus > 50
+    ? Math.max(800, settings.dailyGoal - Math.min(Math.round(yesterdaySurplus / 2), 300))
+    : settings.dailyGoal;
 
   container.innerHTML = `
     <header class="view-header">
@@ -40,15 +56,26 @@ export async function renderRecipes(container) {
       </div>
     </div>` : ''}
 
+    ${yesterdaySurplus > 50 ? `
+    <div class="section" style="padding-bottom:0">
+      <div style="background:var(--orange-dim);border:1px solid var(--orange);border-radius:var(--radius-sm);padding:10px 14px;font-size:13px">
+        <span style="color:var(--orange);font-weight:700">⚖️ Gestern ${yesterdaySurplus} kcal zu viel</span>
+        <span style="color:var(--text-2)"> — Rezept auf <strong>${recommendedKcal} kcal</strong> voreingestellt</span>
+      </div>
+    </div>` : ''}
+
     <!-- Generator -->
     <div class="section">
       <div class="section-label">Rezept generieren</div>
       <div class="gen-form">
+        <div style="margin-bottom:10px;padding:8px 12px;background:var(--accent-dim);border-radius:var(--radius-sm);font-size:12px;color:var(--text-2)">
+          Phase: <strong style="color:var(--accent)">${phase.label}</strong> — ${phase.desc}
+        </div>
         <div class="gen-row">
           <div class="input-group">
             <label class="input-label">Kalorien</label>
             <input id="kcal-input" class="input" type="number" min="100" max="3000"
-              value="${settings.dailyGoal}" inputmode="numeric">
+              value="${recommendedKcal}" inputmode="numeric">
           </div>
           <div class="input-group">
             <label class="input-label">Anzahl</label>
@@ -106,9 +133,9 @@ export async function renderRecipes(container) {
   });
 
   container.querySelector('#btn-generate')?.addEventListener('click', async () => {
-    const kcal  = parseInt(container.querySelector('#kcal-input').value) || settings.dailyGoal;
+    const kcal  = parseInt(container.querySelector('#kcal-input').value) || recommendedKcal;
     const meals = parseInt(container.querySelector('#meals-input').value) || 1;
-    await runGenerate(container, settings.apiKey, kcal, selectedPref, meals);
+    await runGenerate(container, settings.apiKey, kcal, selectedPref, meals, phase);
   });
 
   // Delegated events für gespeicherte Rezepte
@@ -147,12 +174,12 @@ export async function renderRecipes(container) {
 }
 
 // ── Generate ──────────────────────────────────────────────
-async function runGenerate(container, apiKey, kcal, preference, meals) {
+async function runGenerate(container, apiKey, kcal, preference, meals, phase) {
   const resultEl = container.querySelector('#recipe-result');
   resultEl.innerHTML = `<div class="loading-state"><div class="spinner"></div><span>KI generiert Rezept…</span></div>`;
 
   try {
-    const recipes = await generateRecipe(apiKey, { kcal, preference, meals });
+    const recipes = await generateRecipe(apiKey, { kcal, preference, meals, phase });
     generatedRecipes = recipes;
 
     resultEl.innerHTML = `
@@ -220,7 +247,6 @@ function openEditModal(meal, onSave) {
         <button class="btn btn-primary" id="btn-save-edit">Speichern</button>
       </div>`;
 
-    // Add ingredient
     box.querySelector('#btn-add-ingredient').addEventListener('click', () => {
       const list   = box.querySelector('#edit-ingredients');
       const idx    = list.children.length;
@@ -229,19 +255,17 @@ function openEditModal(meal, onSave) {
       list.appendChild(div.firstElementChild);
     });
 
-    // Delete ingredient (delegated)
     box.querySelector('#edit-ingredients').addEventListener('click', e => {
       const del = e.target.closest('[data-del-ing]');
       if (del) del.closest('.ing-row')?.remove();
     });
 
-    // Save
     box.querySelector('#btn-save-edit').addEventListener('click', async () => {
       const zutaten = [...box.querySelectorAll('.ing-row')].map(row => ({
-        name:   row.querySelector('.ing-name').value.trim(),
-        menge:  parseFloat(row.querySelector('.ing-menge').value) || 0,
+        name:    row.querySelector('.ing-name').value.trim(),
+        menge:   parseFloat(row.querySelector('.ing-menge').value) || 0,
         einheit: row.querySelector('.ing-einheit').value.trim() || 'g',
-        kcal:   parseInt(row.querySelector('.ing-kcal').value) || 0,
+        kcal:    parseInt(row.querySelector('.ing-kcal').value) || 0,
       })).filter(z => z.name);
 
       await updateMeal(meal.id, {
@@ -260,10 +284,10 @@ function openEditModal(meal, onSave) {
 function ingredientRow(z, i) {
   return `
     <div class="ing-row" style="display:grid;grid-template-columns:1fr 60px 50px 55px 28px;gap:4px;margin-bottom:6px;align-items:center">
-      <input class="input ing-name"   style="font-size:13px;padding:8px 10px" type="text"   value="${escHtml(z.name)}"   placeholder="Zutat">
-      <input class="input ing-menge"  style="font-size:13px;padding:8px 6px"  type="number" value="${z.menge}"  placeholder="100">
-      <input class="input ing-einheit" style="font-size:13px;padding:8px 6px" type="text"   value="${escHtml(z.einheit ?? 'g')}" placeholder="g">
-      <input class="input ing-kcal"   style="font-size:13px;padding:8px 6px"  type="number" value="${z.kcal}"   placeholder="kcal">
+      <input class="input ing-name"    style="font-size:13px;padding:8px 10px" type="text"   value="${escHtml(z.name)}"             placeholder="Zutat">
+      <input class="input ing-menge"   style="font-size:13px;padding:8px 6px"  type="number" value="${z.menge}"                     placeholder="100">
+      <input class="input ing-einheit" style="font-size:13px;padding:8px 6px"  type="text"   value="${escHtml(z.einheit ?? 'g')}"   placeholder="g">
+      <input class="input ing-kcal"    style="font-size:13px;padding:8px 6px"  type="number" value="${z.kcal}"                      placeholder="kcal">
       <button data-del-ing style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:0">✕</button>
     </div>`;
 }
