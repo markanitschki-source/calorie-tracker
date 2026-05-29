@@ -1,23 +1,25 @@
 import { generateRecipe }    from '../api.js';
-import { getSettings, saveMeal, getSavedMeals, deleteMeal, addShoppingItems } from '../db.js';
-import { showToast, navigate } from '../app.js';
+import { getSettings, saveMeal, getSavedMeals, deleteMeal, updateMeal, toggleFavorite, addShoppingItems } from '../db.js';
+import { showToast, navigate, openModal, closeModal } from '../app.js';
 
 const PREFERENCES = [
-  { id: 'ausgewogen',  label: 'Ausgewogen' },
-  { id: 'low-carb',   label: 'Low-Carb'   },
-  { id: 'vegetarisch',label: 'Vegetarisch' },
-  { id: 'vegan',      label: 'Vegan'       },
-  { id: 'high-protein',label:'High-Protein'},
-  { id: 'schnell',    label: '< 30 Min'   },
+  { id: 'ausgewogen',   label: 'Ausgewogen'  },
+  { id: 'low-carb',     label: 'Low-Carb'    },
+  { id: 'vegetarisch',  label: 'Vegetarisch' },
+  { id: 'vegan',        label: 'Vegan'       },
+  { id: 'high-protein', label: 'High-Protein'},
+  { id: 'schnell',      label: '< 30 Min'   },
 ];
 
-let selectedPref = 'ausgewogen';
+let selectedPref     = 'ausgewogen';
 let generatedRecipes = [];
 
 export async function renderRecipes(container) {
   const settings = await getSettings();
   const saved    = await getSavedMeals();
   const hasKey   = !!settings.apiKey;
+  const favorites = saved.filter(m => m.favorite);
+  const others    = saved.filter(m => !m.favorite);
 
   container.innerHTML = `
     <header class="view-header">
@@ -30,29 +32,26 @@ export async function renderRecipes(container) {
     ${!hasKey ? `
     <div class="section">
       <div class="card" style="padding:16px;background:var(--orange-dim);border-color:var(--orange)">
-        <div style="font-size:14px;color:var(--orange);font-weight:600;margin-bottom:6px">
-          ⚠️ API-Key fehlt
-        </div>
+        <div style="font-size:14px;color:var(--orange);font-weight:600;margin-bottom:6px">⚠️ API-Key fehlt</div>
         <div style="font-size:13px;color:var(--text-2);margin-bottom:12px">
           Für KI-Rezepte benötigst du einen Anthropic API-Key.
-          Kostenlos registrieren auf console.anthropic.com.
         </div>
         <button class="btn btn-ghost btn-sm" id="btn-goto-settings">Zu den Einstellungen</button>
       </div>
     </div>` : ''}
 
-    <!-- Generator Form -->
+    <!-- Generator -->
     <div class="section">
       <div class="section-label">Rezept generieren</div>
       <div class="gen-form">
         <div class="gen-row">
           <div class="input-group">
-            <label class="input-label">Kalorien-Ziel</label>
+            <label class="input-label">Kalorien</label>
             <input id="kcal-input" class="input" type="number" min="100" max="3000"
-              value="${settings.dailyGoal}" inputmode="numeric" placeholder="z.B. 600">
+              value="${settings.dailyGoal}" inputmode="numeric">
           </div>
           <div class="input-group">
-            <label class="input-label">Mahlzeiten</label>
+            <label class="input-label">Anzahl</label>
             <select id="meals-input" class="input">
               <option value="1">1 Rezept</option>
               <option value="2">2 Rezepte</option>
@@ -60,7 +59,6 @@ export async function renderRecipes(container) {
             </select>
           </div>
         </div>
-
         <div style="margin-bottom:16px">
           <div class="input-label">Ernährungsstil</div>
           <div class="pill-tabs" style="padding:6px 0 0">
@@ -70,7 +68,6 @@ export async function renderRecipes(container) {
               </button>`).join('')}
           </div>
         </div>
-
         <button class="btn btn-primary" id="btn-generate" ${!hasKey ? 'disabled' : ''}>
           ✨ Rezept von KI generieren
         </button>
@@ -79,23 +76,32 @@ export async function renderRecipes(container) {
 
     <div id="recipe-result"></div>
 
-    <!-- Saved Meals -->
-    ${saved.length > 0 ? `
+    <!-- Lieblingsrezepte -->
+    ${favorites.length > 0 ? `
     <div class="section">
-      <div class="section-label">Gespeicherte Rezepte (${saved.length})</div>
+      <div class="section-label">⭐ Lieblingsrezepte (${favorites.length})</div>
+      <div id="favorites-list">
+        ${favorites.map(m => savedMealCard(m)).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- Alle gespeicherten -->
+    ${others.length > 0 ? `
+    <div class="section">
+      <div class="section-label">Gespeicherte Rezepte (${others.length})</div>
       <div id="saved-list">
-        ${saved.map(m => savedMealCard(m)).join('')}
+        ${others.map(m => savedMealCard(m)).join('')}
       </div>
     </div>` : ''}
   `;
 
-  // Events
   container.querySelector('#btn-goto-settings')?.addEventListener('click', () => navigate('settings'));
 
   container.querySelectorAll('.pill[data-pref]').forEach(pill => {
     pill.addEventListener('click', () => {
       selectedPref = pill.dataset.pref;
-      container.querySelectorAll('.pill[data-pref]').forEach(p => p.classList.toggle('active', p.dataset.pref === selectedPref));
+      container.querySelectorAll('.pill[data-pref]').forEach(p =>
+        p.classList.toggle('active', p.dataset.pref === selectedPref));
     });
   });
 
@@ -105,28 +111,42 @@ export async function renderRecipes(container) {
     await runGenerate(container, settings.apiKey, kcal, selectedPref, meals);
   });
 
-  // Saved meal actions (delegated)
-  container.querySelector('#saved-list')?.addEventListener('click', async e => {
-    const delBtn   = e.target.closest('[data-del-meal]');
-    const shopBtn  = e.target.closest('[data-shop-meal]');
-    const logBtn   = e.target.closest('[data-log-meal]');
+  // Delegated events für gespeicherte Rezepte
+  const handleSavedActions = async (e) => {
+    const favBtn  = e.target.closest('[data-fav]');
+    const editBtn = e.target.closest('[data-edit]');
+    const delBtn  = e.target.closest('[data-del-meal]');
+    const shopBtn = e.target.closest('[data-shop-meal]');
 
+    if (favBtn) {
+      await toggleFavorite(Number(favBtn.dataset.fav));
+      renderRecipes(container);
+    }
+    if (editBtn) {
+      const meal = (await getSavedMeals()).find(m => m.id === Number(editBtn.dataset.edit));
+      if (meal) openEditModal(meal, () => renderRecipes(container));
+    }
     if (delBtn) {
+      if (!confirm('Rezept löschen?')) return;
       await deleteMeal(Number(delBtn.dataset.delMeal));
       showToast('Rezept gelöscht');
       renderRecipes(container);
     }
     if (shopBtn) {
       const meal = (await getSavedMeals()).find(m => m.id === Number(shopBtn.dataset.shopMeal));
-      if (meal) {
-        await addShoppingItems(meal.ingredients.map(i => ({ name: i.name, amount: `${i.menge} ${i.einheit}` })));
+      if (meal?.zutaten) {
+        await addShoppingItems(meal.zutaten.map(z => ({ name: z.name, amount: `${z.menge} ${z.einheit}` })));
         showToast('Zutaten zur Einkaufsliste hinzugefügt');
         navigate('shopping');
       }
     }
-  });
+  };
+
+  container.querySelector('#favorites-list')?.addEventListener('click', handleSavedActions);
+  container.querySelector('#saved-list')?.addEventListener('click', handleSavedActions);
 }
 
+// ── Generate ──────────────────────────────────────────────
 async function runGenerate(container, apiKey, kcal, preference, meals) {
   const resultEl = container.querySelector('#recipe-result');
   resultEl.innerHTML = `<div class="loading-state"><div class="spinner"></div><span>KI generiert Rezept…</span></div>`;
@@ -143,8 +163,7 @@ async function runGenerate(container, apiKey, kcal, preference, meals) {
 
     resultEl.querySelectorAll('[data-save-recipe]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const recipe = generatedRecipes[Number(btn.dataset.saveRecipe)];
-        await saveMeal(recipe);
+        await saveMeal(generatedRecipes[Number(btn.dataset.saveRecipe)]);
         showToast('Rezept gespeichert');
         renderRecipes(container);
       });
@@ -152,8 +171,8 @@ async function runGenerate(container, apiKey, kcal, preference, meals) {
 
     resultEl.querySelectorAll('[data-shop-recipe]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const recipe = generatedRecipes[Number(btn.dataset.shopRecipe)];
-        await addShoppingItems(recipe.zutaten.map(z => ({ name: z.name, amount: `${z.menge} ${z.einheit}` })));
+        const r = generatedRecipes[Number(btn.dataset.shopRecipe)];
+        await addShoppingItems(r.zutaten.map(z => ({ name: z.name, amount: `${z.menge} ${z.einheit}` })));
         showToast('Zutaten zur Einkaufsliste hinzugefügt');
         navigate('shopping');
       });
@@ -170,6 +189,86 @@ async function runGenerate(container, apiKey, kcal, preference, meals) {
   }
 }
 
+// ── Edit Modal ────────────────────────────────────────────
+function openEditModal(meal, onSave) {
+  openModal(box => {
+    box.innerHTML += `
+      <div class="modal-title">Rezept bearbeiten</div>
+      <div style="padding:0 20px 16px">
+        <div class="input-group">
+          <label class="input-label">Name</label>
+          <input id="edit-name" class="input" type="text" value="${escHtml(meal.name)}">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Kalorien gesamt</label>
+          <input id="edit-kcal" class="input" type="number" value="${meal.gesamt_kcal ?? ''}" inputmode="numeric">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Zutaten</label>
+          <div id="edit-ingredients">
+            ${(meal.zutaten ?? []).map((z, i) => ingredientRow(z, i)).join('')}
+          </div>
+          <button class="btn btn-ghost btn-sm" id="btn-add-ingredient" style="width:100%;margin-top:6px">
+            + Zutat hinzufügen
+          </button>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Zubereitung</label>
+          <textarea id="edit-instructions" class="input" rows="4"
+            style="resize:vertical;font-family:inherit">${escHtml(meal.anleitung ?? '')}</textarea>
+        </div>
+        <button class="btn btn-primary" id="btn-save-edit">Speichern</button>
+      </div>`;
+
+    // Add ingredient
+    box.querySelector('#btn-add-ingredient').addEventListener('click', () => {
+      const list   = box.querySelector('#edit-ingredients');
+      const idx    = list.children.length;
+      const div    = document.createElement('div');
+      div.innerHTML = ingredientRow({ name: '', menge: '', einheit: 'g', kcal: 0 }, idx);
+      list.appendChild(div.firstElementChild);
+    });
+
+    // Delete ingredient (delegated)
+    box.querySelector('#edit-ingredients').addEventListener('click', e => {
+      const del = e.target.closest('[data-del-ing]');
+      if (del) del.closest('.ing-row')?.remove();
+    });
+
+    // Save
+    box.querySelector('#btn-save-edit').addEventListener('click', async () => {
+      const zutaten = [...box.querySelectorAll('.ing-row')].map(row => ({
+        name:   row.querySelector('.ing-name').value.trim(),
+        menge:  parseFloat(row.querySelector('.ing-menge').value) || 0,
+        einheit: row.querySelector('.ing-einheit').value.trim() || 'g',
+        kcal:   parseInt(row.querySelector('.ing-kcal').value) || 0,
+      })).filter(z => z.name);
+
+      await updateMeal(meal.id, {
+        name:        box.querySelector('#edit-name').value.trim() || meal.name,
+        gesamt_kcal: parseInt(box.querySelector('#edit-kcal').value) || meal.gesamt_kcal,
+        anleitung:   box.querySelector('#edit-instructions').value.trim(),
+        zutaten,
+      });
+      closeModal();
+      showToast('Rezept gespeichert');
+      onSave();
+    });
+  });
+}
+
+function ingredientRow(z, i) {
+  return `
+    <div class="ing-row" style="display:grid;grid-template-columns:1fr 60px 50px 55px 28px;gap:4px;margin-bottom:6px;align-items:center">
+      <input class="input ing-name"   style="font-size:13px;padding:8px 10px" type="text"   value="${escHtml(z.name)}"   placeholder="Zutat">
+      <input class="input ing-menge"  style="font-size:13px;padding:8px 6px"  type="number" value="${z.menge}"  placeholder="100">
+      <input class="input ing-einheit" style="font-size:13px;padding:8px 6px" type="text"   value="${escHtml(z.einheit ?? 'g')}" placeholder="g">
+      <input class="input ing-kcal"   style="font-size:13px;padding:8px 6px"  type="number" value="${z.kcal}"   placeholder="kcal">
+      <button data-del-ing style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:0">✕</button>
+    </div>`;
+}
+
+// ── Recipe Cards ──────────────────────────────────────────
 function recipeCard(recipe, idx) {
   const { name, zutaten = [], anleitung = '', gesamt_kcal } = recipe;
   return `
@@ -192,12 +291,8 @@ function recipeCard(recipe, idx) {
         ${escHtml(anleitung).replace(/\n/g,'<br>')}
       </div>
       <div class="recipe-actions">
-        <button class="btn btn-success btn-sm" style="flex:1" data-shop-recipe="${idx}">
-          🛒 Einkaufsliste
-        </button>
-        <button class="btn btn-ghost btn-sm" style="flex:1" data-save-recipe="${idx}">
-          💾 Speichern
-        </button>
+        <button class="btn btn-success btn-sm" style="flex:1" data-shop-recipe="${idx}">🛒 Einkaufsliste</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1" data-save-recipe="${idx}">💾 Speichern</button>
       </div>
     </div>`;
 }
@@ -207,19 +302,31 @@ function savedMealCard(meal) {
     <div class="recipe-card">
       <div class="recipe-header">
         <div class="recipe-title">${escHtml(meal.name)}</div>
-        <div class="recipe-kcal-badge">${meal.gesamt_kcal} kcal</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+          <button data-fav="${meal.id}" style="background:none;border:none;cursor:pointer;font-size:20px;padding:0;line-height:1"
+            title="${meal.favorite ? 'Aus Favoriten entfernen' : 'Als Favorit markieren'}">
+            ${meal.favorite ? '⭐' : '☆'}
+          </button>
+          <div class="recipe-kcal-badge">${meal.gesamt_kcal} kcal</div>
+        </div>
       </div>
+      ${(meal.zutaten?.length ?? 0) > 0 ? `
+      <div class="recipe-ingredients" style="max-height:120px;overflow:hidden">
+        ${meal.zutaten.slice(0, 4).map(z => `
+          <div class="ingredient-row">
+            <span class="ingredient-name">${escHtml(z.name)}</span>
+            <span class="ingredient-amount">${z.menge} ${z.einheit}</span>
+          </div>`).join('')}
+        ${meal.zutaten.length > 4 ? `<div style="font-size:12px;color:var(--text-3);padding:4px 0">+ ${meal.zutaten.length - 4} weitere</div>` : ''}
+      </div>` : ''}
       <div class="recipe-actions">
-        <button class="btn btn-success btn-sm" style="flex:1" data-shop-meal="${meal.id}">
-          🛒 Einkaufsliste
-        </button>
-        <button class="btn btn-danger btn-sm" style="flex:1" data-del-meal="${meal.id}">
-          🗑️ Löschen
-        </button>
+        <button class="btn btn-success btn-sm" style="flex:1" data-shop-meal="${meal.id}">🛒 Einkauf</button>
+        <button class="btn btn-ghost btn-sm"   style="flex:1" data-edit="${meal.id}">✏️ Bearbeiten</button>
+        <button class="btn btn-danger btn-sm"  style="flex:1" data-del-meal="${meal.id}">🗑️</button>
       </div>
     </div>`;
 }
 
 function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

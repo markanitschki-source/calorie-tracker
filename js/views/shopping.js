@@ -6,7 +6,7 @@ export async function renderShopping(container) {
 }
 
 async function paint(container) {
-  const items = await getShoppingList();
+  const items     = await getShoppingList();
   const unchecked = items.filter(i => !i.checked);
   const checked   = items.filter(i => i.checked);
 
@@ -16,19 +16,32 @@ async function paint(container) {
         <h1>Einkaufsliste</h1>
         <div class="subtitle">${unchecked.length} offen · ${checked.length} erledigt</div>
       </div>
-      ${items.length > 0 ? `
+      ${checked.length > 0 ? `
       <button class="btn btn-ghost btn-sm" id="btn-clear-done">Erledigte löschen</button>` : ''}
     </header>
 
-    <!-- Add manually -->
+    <!-- Manuell hinzufügen -->
     <div class="section">
       <div class="input-with-btn">
-        <input id="manual-input" class="input" type="text" placeholder="Artikel manuell hinzufügen…" autocomplete="off">
+        <input id="manual-input" class="input" type="text"
+          placeholder="Artikel manuell hinzufügen…" autocomplete="off">
         <button class="btn btn-primary" id="btn-add-manual" style="width:auto;padding:12px 14px">+</button>
       </div>
     </div>
 
-    <!-- Items -->
+    <!-- WhatsApp + Aktionen -->
+    ${items.length > 0 ? `
+    <div class="section" style="padding-top:0;display:flex;gap:8px">
+      <button class="btn btn-success btn-sm" id="btn-whatsapp" style="flex:1">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+        </svg>
+        Per WhatsApp teilen
+      </button>
+      <button class="btn btn-danger btn-sm" id="btn-clear-all">Alle löschen</button>
+    </div>` : ''}
+
+    <!-- Liste -->
     <div class="section" style="padding-top:0">
       ${items.length === 0 ? `
         <div class="empty-state">
@@ -37,50 +50,38 @@ async function paint(container) {
         </div>` : `
         <div class="card" id="shop-list">
           ${unchecked.map(i => shopRow(i)).join('')}
-          ${checked.length > 0 && unchecked.length > 0 ? `<div style="padding:8px 16px;font-size:12px;color:var(--text-3);border-top:1px solid var(--border)">Erledigt</div>` : ''}
+          ${checked.length > 0 && unchecked.length > 0
+            ? `<div style="padding:8px 16px;font-size:12px;color:var(--text-3);border-top:1px solid var(--border)">Erledigt</div>`
+            : ''}
           ${checked.map(i => shopRow(i)).join('')}
         </div>`}
     </div>
-
-    ${items.length > 0 ? `
-    <div class="section" style="padding-top:0">
-      <button class="btn btn-danger btn-sm" style="width:100%" id="btn-clear-all">
-        Gesamte Liste löschen
-      </button>
-    </div>` : ''}
   `;
 
   const list = container.querySelector('#shop-list');
 
-  // Toggle checkbox
   list?.addEventListener('change', async e => {
     if (e.target.classList.contains('shop-checkbox')) {
-      const id = Number(e.target.dataset.id);
-      await toggleShoppingItem(id);
+      await toggleShoppingItem(Number(e.target.dataset.id));
       await paint(container);
     }
   });
 
-  // Delete item
   list?.addEventListener('click', async e => {
-    const delBtn = e.target.closest('.shop-item-del');
-    if (delBtn) {
-      const id = Number(delBtn.dataset.id);
-      await deleteShoppingItem(id);
+    const del = e.target.closest('.shop-item-del');
+    if (del) {
+      await deleteShoppingItem(Number(del.dataset.id));
       showToast('Artikel gelöscht');
       await paint(container);
     }
   });
 
-  // Clear done
   container.querySelector('#btn-clear-done')?.addEventListener('click', async () => {
-    const items = await getShoppingList();
-    await saveShoppingList(items.filter(i => !i.checked));
+    await saveShoppingList((await getShoppingList()).filter(i => !i.checked));
     showToast('Erledigte gelöscht');
     await paint(container);
   });
 
-  // Clear all
   container.querySelector('#btn-clear-all')?.addEventListener('click', async () => {
     if (!confirm('Gesamte Liste löschen?')) return;
     await saveShoppingList([]);
@@ -88,7 +89,17 @@ async function paint(container) {
     await paint(container);
   });
 
-  // Add manual
+  // WhatsApp
+  container.querySelector('#btn-whatsapp')?.addEventListener('click', async () => {
+    const all   = await getShoppingList();
+    const open  = all.filter(i => !i.checked);
+    if (!open.length) { showToast('Keine offenen Artikel'); return; }
+    const text  = '🛒 *Einkaufsliste*\n\n' +
+      open.map(i => `• ${i.name}${i.amount ? ' (' + i.amount + ')' : ''}`).join('\n');
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+  });
+
+  // Manuell hinzufügen
   const manualInput = container.querySelector('#manual-input');
   const btnAdd      = container.querySelector('#btn-add-manual');
 
@@ -110,7 +121,8 @@ async function paint(container) {
 function shopRow(item) {
   return `
     <div class="shop-item ${item.checked ? 'checked' : ''}">
-      <input type="checkbox" class="shop-checkbox" data-id="${item.id}" ${item.checked ? 'checked' : ''} aria-label="${escHtml(item.name)}">
+      <input type="checkbox" class="shop-checkbox" data-id="${item.id}"
+        ${item.checked ? 'checked' : ''} aria-label="${escHtml(item.name)}">
       <div class="shop-item-text">${escHtml(item.name)}</div>
       ${item.amount ? `<div class="shop-item-amount">${escHtml(item.amount)}</div>` : ''}
       <button class="shop-item-del" data-id="${item.id}" title="Löschen">✕</button>
