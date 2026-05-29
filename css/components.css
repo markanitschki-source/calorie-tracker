@@ -1,0 +1,423 @@
+/* ── Buttons ───────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  padding: 12px 20px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-primary  { background: var(--accent); color: #fff; width: 100%; }
+.btn-ghost    { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.btn-danger   { background: var(--red-dim); color: var(--red); border: 1px solid transparent; }
+.btn-success  { background: var(--green-dim); color: var(--green); }
+.btn-icon     { padding: 8px; width: 36px; height: 36px; border-radius: 8px; background: var(--surface-2); }
+.btn-sm       { font-size: 13px; padding: 8px 14px; }
+
+/* ── Input ─────────────────────────────────────────────── */
+.input-group {
+  margin-bottom: 16px;
+}
+
+.input-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+
+.input {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 16px;
+  padding: 12px 14px;
+  outline: none;
+  transition: border-color 0.15s;
+  -webkit-appearance: none;
+}
+
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.input::placeholder { color: var(--text-3); }
+
+.input-with-btn {
+  display: flex;
+  gap: 8px;
+}
+
+.input-with-btn .input { flex: 1; }
+.input-with-btn .btn { flex-shrink: 0; }
+
+/* ── Card ──────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.card + .card { margin-top: 10px; }
+
+.card-row {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  gap: 12px;
+}
+
+.card-row + .card-row {
+  border-top: 1px solid var(--border);
+}
+
+.card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.card-body { flex: 1; min-width: 0; }
+.card-title { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-subtitle { font-size: 13px; color: var(--text-2); margin-top: 2px; }
+
+.card-right { flex-shrink: 0; text-align: right; }
+.card-kcal { font-size: 16px; font-weight: 700; color: var(--accent); }
+.card-kcal-label { font-size: 11px; color: var(--text-3); }
+
+/* ── Food Entry ────────────────────────────────────────── */
+.entry-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  transition: background 0.1s;
+}
+
+.entry-item:last-child { border-bottom: none; }
+.entry-item:active { background: var(--surface-2); }
+
+.entry-body { flex: 1; min-width: 0; }
+.entry-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.entry-meta { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+
+.entry-kcal { font-size: 15px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+
+.entry-del {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  font-size: 16px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+
+.entry-del:hover { color: var(--red); background: var(--red-dim); }
+
+/* ── Search Results ────────────────────────────────────── */
+.search-result {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  gap: 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+.search-result:last-child { border-bottom: none; }
+.search-result:active { background: var(--surface-2); }
+
+.search-result .sr-info { flex: 1; min-width: 0; }
+.search-result .sr-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search-result .sr-brand { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+.search-result .sr-kcal { font-size: 14px; font-weight: 700; color: var(--text-2); flex-shrink: 0; }
+.search-result .sr-kcal span { font-size: 11px; font-weight: 400; }
+
+/* ── Recipe Card ───────────────────────────────────────── */
+.recipe-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.recipe-header {
+  padding: 16px;
+  background: linear-gradient(135deg, var(--accent-dim), transparent);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.recipe-title {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  flex: 1;
+}
+
+.recipe-kcal-badge {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 100px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.recipe-ingredients {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ingredient-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.ingredient-row:last-child { border-bottom: none; }
+
+.ingredient-name { color: var(--text); }
+.ingredient-amount { color: var(--text-2); font-size: 13px; }
+.ingredient-kcal { color: var(--accent); font-size: 13px; font-weight: 600; }
+
+.recipe-instructions {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--text-2);
+  line-height: 1.7;
+  border-bottom: 1px solid var(--border);
+}
+
+.recipe-actions {
+  padding: 12px 16px;
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Shopping List ─────────────────────────────────────── */
+.shop-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  transition: background 0.1s;
+}
+
+.shop-item:last-child { border-bottom: none; }
+
+.shop-checkbox {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 2px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+}
+
+.shop-checkbox:checked {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.shop-checkbox:checked::after {
+  content: '';
+  width: 12px;
+  height: 7px;
+  border-left: 2px solid #000;
+  border-bottom: 2px solid #000;
+  transform: rotate(-45deg) translateY(-1px);
+  display: block;
+}
+
+.shop-item-text {
+  flex: 1;
+  font-size: 15px;
+  transition: opacity 0.2s;
+}
+
+.shop-item.checked .shop-item-text {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.shop-item-amount {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.shop-item-del {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 16px;
+  border-radius: 6px;
+  transition: color 0.15s;
+}
+
+.shop-item-del:hover { color: var(--red); }
+
+/* ── Pill Tabs ─────────────────────────────────────────── */
+.pill-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 0 20px 16px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  padding: 7px 14px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  transition: all 0.15s;
+}
+
+.pill.active, .pill:active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ── Settings Rows ─────────────────────────────────────── */
+.settings-row {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-row:last-child { border-bottom: none; }
+
+.settings-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 8px;
+  display: block;
+}
+
+.settings-hint {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+/* ── Progress Dots ─────────────────────────────────────── */
+.day-dot-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  padding: 4px 0 16px;
+}
+
+.day-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--surface-3);
+}
+
+.day-dot.filled { background: var(--accent); }
+.day-dot.today { background: var(--green); }
+
+/* ── AI Generator Form ─────────────────────────────────── */
+.gen-form {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.gen-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.gen-row .input-group {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+/* ── Streaks / Stats ───────────────────────────────────── */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding: 0 20px 16px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 2px;
+}
