@@ -1,5 +1,9 @@
-import { generateRecipe }    from '../api.js';
-import { getSettings, saveMeal, getSavedMeals, deleteMeal, updateMeal, toggleFavorite, addShoppingItems, getLogForDate, sumLog, PHASES } from '../db.js';
+import { generateRecipe, askNutritionQuestion } from '../api.js';
+import {
+  getSettings, saveMeal, getSavedMeals, deleteMeal, updateMeal,
+  toggleFavorite, addShoppingItems, getLogForDate, sumLog, PHASES,
+  getActiveProfileId, getProfiles,
+} from '../db.js';
 import { showToast, navigate, openModal, closeModal } from '../app.js';
 
 const PREFERENCES = [
@@ -13,6 +17,7 @@ const PREFERENCES = [
 
 let selectedPref     = 'ausgewogen';
 let generatedRecipes = [];
+let chatHistory      = [];
 
 function yesterday() {
   const d = new Date();
@@ -21,10 +26,13 @@ function yesterday() {
 }
 
 export async function renderRecipes(container) {
-  const [settings, saved, yesterdayLog] = await Promise.all([
-    getSettings(), getSavedMeals(), getLogForDate(yesterday()),
+  const [settings, saved, yesterdayLog, profiles] = await Promise.all([
+    getSettings(), getSavedMeals(), getLogForDate(yesterday()), getProfiles(),
   ]);
-  const hasKey   = !!settings.apiKey;
+
+  const pid       = getActiveProfileId();
+  const profile   = profiles.find(p => p.id === pid) ?? { name: pid };
+  const hasKey    = !!settings.apiKey;
   const favorites = saved.filter(m => m.favorite);
   const others    = saved.filter(m => !m.favorite);
 
@@ -32,8 +40,7 @@ export async function renderRecipes(container) {
   const effectiveGoal   = settings.dailyGoal + phase.offset;
   const yesterdayKcal   = sumLog(yesterdayLog).kcal;
   const yesterdaySurplus = yesterdayKcal > 50
-    ? Math.max(0, yesterdayKcal - effectiveGoal)
-    : 0;
+    ? Math.max(0, yesterdayKcal - effectiveGoal) : 0;
   const recommendedKcal = yesterdaySurplus > 50
     ? Math.max(800, effectiveGoal - Math.min(Math.round(yesterdaySurplus / 2), 300))
     : effectiveGoal;
@@ -51,7 +58,7 @@ export async function renderRecipes(container) {
       <div class="card" style="padding:16px;background:var(--orange-dim);border-color:var(--orange)">
         <div style="font-size:14px;color:var(--orange);font-weight:600;margin-bottom:6px">⚠️ API-Key fehlt</div>
         <div style="font-size:13px;color:var(--text-2);margin-bottom:12px">
-          Für KI-Rezepte benötigst du einen Anthropic API-Key.
+          Für KI-Rezepte und Ernährungsberatung benötigst du einen Anthropic API-Key.
         </div>
         <button class="btn btn-ghost btn-sm" id="btn-goto-settings">Zu den Einstellungen</button>
       </div>
@@ -121,6 +128,30 @@ export async function renderRecipes(container) {
         ${others.map(m => savedMealCard(m)).join('')}
       </div>
     </div>` : ''}
+
+    <!-- Claude Chat Widget -->
+    <div class="section">
+      <div class="section-label">🤖 Ernährungsberater</div>
+      <div class="chat-widget">
+        <div class="chat-history" id="chat-history">
+          ${chatHistory.length === 0
+            ? `<div style="font-size:13px;color:var(--text-3);text-align:center;padding:8px 0">
+                 Stell mir eine Frage zu Ernährung, Kalorien oder Rezepten!
+               </div>`
+            : chatHistory.map(m => `
+                <div class="chat-msg ${m.role}">
+                  ${m.role === 'user' ? '👤 ' : '🤖 '}${escHtml(m.text)}
+                </div>`).join('')}
+        </div>
+        <div class="chat-input-row">
+          <input id="chat-input" class="input" type="text"
+            placeholder="${hasKey ? 'Frage stellen…' : 'API-Key benötigt'}"
+            ${!hasKey ? 'disabled' : ''}>
+          <button class="btn btn-primary" id="btn-chat-send" ${!hasKey ? 'disabled' : ''}
+            style="white-space:nowrap;flex-shrink:0">Senden</button>
+        </div>
+      </div>
+    </div>
   `;
 
   container.querySelector('#btn-goto-settings')?.addEventListener('click', () => navigate('settings'));
@@ -139,7 +170,7 @@ export async function renderRecipes(container) {
     await runGenerate(container, settings.apiKey, kcal, selectedPref, meals, phase);
   });
 
-  // Delegated events für gespeicherte Rezepte
+  // Delegated events for saved recipes
   const handleSavedActions = async (e) => {
     const favBtn  = e.target.closest('[data-fav]');
     const editBtn = e.target.closest('[data-edit]');
@@ -172,11 +203,68 @@ export async function renderRecipes(container) {
 
   container.querySelector('#favorites-list')?.addEventListener('click', handleSavedActions);
   container.querySelector('#saved-list')?.addEventListener('click', handleSavedActions);
+
+  // Chat widget
+  const chatInput  = container.querySelector('#chat-input');
+  const chatSend   = container.querySelector('#btn-chat-send');
+  const chatHistEl = container.querySelector('#chat-history');
+
+  const sendChat = async () => {
+    const q = chatInput.value.trim();
+    if (!q || !settings.apiKey) return;
+
+    chatInput.value   = '';
+    chatInput.disabled = true;
+    chatSend.disabled  = true;
+    chatSend.textContent = '…';
+
+    chatHistory.push({ role: 'user', text: q });
+    appendChatMsg(chatHistEl, 'user', q);
+    chatHistEl.scrollTop = chatHistEl.scrollHeight;
+
+    try {
+      const todayLog  = await (await import('../db.js')).getTodayLog();
+      const todayTots = sumLog(todayLog);
+      const answer    = await askNutritionQuestion(settings.apiKey, q, {
+        kcal:        totalsForChat(todayTots),
+        goal:        effectiveGoal,
+        protein:     todayTots.protein,
+        profileName: profile.name,
+      });
+      chatHistory.push({ role: 'claude', text: answer });
+      appendChatMsg(chatHistEl, 'claude', answer);
+    } catch (err) {
+      chatHistory.push({ role: 'claude', text: 'Fehler: ' + err.message });
+      appendChatMsg(chatHistEl, 'claude', 'Fehler: ' + err.message);
+    } finally {
+      chatInput.disabled   = false;
+      chatSend.disabled    = false;
+      chatSend.textContent = 'Senden';
+      chatHistEl.scrollTop = chatHistEl.scrollHeight;
+      chatInput.focus();
+    }
+  };
+
+  chatSend?.addEventListener('click', sendChat);
+  chatInput?.addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
+}
+
+function totalsForChat(t) {
+  return t.kcal;
+}
+
+function appendChatMsg(el, role, text) {
+  const empty = el.querySelector('[style*="text-align:center"]');
+  if (empty) el.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = `chat-msg ${role}`;
+  div.textContent = (role === 'user' ? '👤 ' : '🤖 ') + text;
+  el.appendChild(div);
 }
 
 // ── Generate ──────────────────────────────────────────────
 async function runGenerate(container, apiKey, kcal, preference, meals, phase) {
-  const resultEl = container.querySelector('#recipe-result');
+  const resultEl    = container.querySelector('#recipe-result');
   resultEl.innerHTML = `<div class="loading-state"><div class="spinner"></div><span>KI generiert Rezept…</span></div>`;
 
   try {
@@ -249,9 +337,9 @@ function openEditModal(meal, onSave) {
       </div>`;
 
     box.querySelector('#btn-add-ingredient').addEventListener('click', () => {
-      const list   = box.querySelector('#edit-ingredients');
-      const idx    = list.children.length;
-      const div    = document.createElement('div');
+      const list = box.querySelector('#edit-ingredients');
+      const idx  = list.children.length;
+      const div  = document.createElement('div');
       div.innerHTML = ingredientRow({ name: '', menge: '', einheit: 'g', kcal: 0 }, idx);
       list.appendChild(div.firstElementChild);
     });
@@ -285,10 +373,10 @@ function openEditModal(meal, onSave) {
 function ingredientRow(z, i) {
   return `
     <div class="ing-row" style="display:grid;grid-template-columns:1fr 60px 50px 55px 28px;gap:4px;margin-bottom:6px;align-items:center">
-      <input class="input ing-name"    style="font-size:13px;padding:8px 10px" type="text"   value="${escHtml(z.name)}"             placeholder="Zutat">
-      <input class="input ing-menge"   style="font-size:13px;padding:8px 6px"  type="number" value="${z.menge}"                     placeholder="100">
-      <input class="input ing-einheit" style="font-size:13px;padding:8px 6px"  type="text"   value="${escHtml(z.einheit ?? 'g')}"   placeholder="g">
-      <input class="input ing-kcal"    style="font-size:13px;padding:8px 6px"  type="number" value="${z.kcal}"                      placeholder="kcal">
+      <input class="input ing-name"    style="font-size:13px;padding:8px 10px" type="text"   value="${escHtml(z.name)}"           placeholder="Zutat">
+      <input class="input ing-menge"   style="font-size:13px;padding:8px 6px"  type="number" value="${z.menge}"                   placeholder="100">
+      <input class="input ing-einheit" style="font-size:13px;padding:8px 6px"  type="text"   value="${escHtml(z.einheit ?? 'g')}" placeholder="g">
+      <input class="input ing-kcal"    style="font-size:13px;padding:8px 6px"  type="number" value="${z.kcal}"                    placeholder="kcal">
       <button data-del-ing style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:0">✕</button>
     </div>`;
 }
@@ -317,7 +405,7 @@ function recipeCard(recipe, idx) {
       </div>
       <div class="recipe-actions">
         <button class="btn btn-success btn-sm" style="flex:1" data-shop-recipe="${idx}">🛒 Einkaufsliste</button>
-        <button class="btn btn-ghost btn-sm" style="flex:1" data-save-recipe="${idx}">💾 Speichern</button>
+        <button class="btn btn-ghost btn-sm"   style="flex:1" data-save-recipe="${idx}">💾 Speichern</button>
       </div>
     </div>`;
 }

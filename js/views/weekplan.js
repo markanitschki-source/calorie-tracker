@@ -11,6 +11,7 @@ const DAYS_FULL  = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samst
 const MONTHS     = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
 
 let currentWeekStart = getWeekStart();
+let peopleCount      = 1;
 
 export async function renderWeekplan(container) {
   await paint(container);
@@ -44,8 +45,22 @@ async function paint(container) {
       <button class="btn btn-ghost btn-sm" id="btn-next-week" style="font-size:18px;width:36px;height:36px;padding:0">›</button>
     </div>
 
+    <!-- Personen-Auswahl -->
+    <div style="padding:0 20px 14px">
+      <div style="font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">
+        Portionen für
+      </div>
+      <div class="pill-tabs" style="gap:6px">
+        ${[1,2,3,4,5,6].map(n => `
+          <button class="pill ${n === peopleCount ? 'active' : ''}" data-people="${n}" style="min-width:40px">
+            ${n}${n === 1 ? ' Person' : ' Pers.'}
+          </button>`).join('')}
+      </div>
+    </div>
+
     <div style="padding:0 20px 16px;display:flex;gap:10px">
-      <button class="btn btn-primary" id="btn-generate" style="flex:1" ${!hasKey ? 'disabled title="API-Key in Einstellungen eintragen"' : ''}>
+      <button class="btn btn-primary" id="btn-generate" style="flex:1"
+        ${!hasKey ? 'disabled title="API-Key in Einstellungen eintragen"' : ''}>
         ${!hasKey ? '⚠ API-Key fehlt' : weekPlan ? '🔄 Woche neu generieren' : '✨ Woche generieren'}
       </button>
       ${weekPlan ? `<button class="btn btn-ghost" id="btn-shopping" style="flex-shrink:0">🛒 Einkaufsliste</button>` : ''}
@@ -56,11 +71,16 @@ async function paint(container) {
       API-Key in <strong>Einstellungen</strong> eintragen um Rezepte zu generieren.
     </div>` : ''}
 
+    ${weekPlan?.people && weekPlan.people > 1 ? `
+    <div style="margin:0 20px 16px;padding:10px 14px;background:var(--accent-dim);border-radius:var(--radius-sm);font-size:13px;color:var(--accent)">
+      👨‍👩‍👧‍👦 Plan für ${weekPlan.people} Personen · Zutatenmengen entsprechend skaliert
+    </div>` : ''}
+
     <div style="padding:0 20px">
       ${weekDates.map((date, i) => {
         const recipe  = weekPlan?.days?.[i]?.recipe ?? null;
         const isToday = date === todayStr;
-        return dayCard(date, DAYS_SHORT[i], DAYS_FULL[i], recipe, isToday);
+        return dayCard(date, DAYS_SHORT[i], DAYS_FULL[i], recipe, isToday, weekPlan?.people ?? 1);
       }).join('')}
     </div>
 
@@ -77,7 +97,7 @@ async function paint(container) {
             </span>`).join('')}
         </div>` : `
         <div style="font-size:13px;color:var(--text-3);margin-bottom:12px">
-          Noch keine Einträge — tippe auf "Mag ich nicht" bei einer Zutat oder füge manuell hinzu
+          Noch keine Einträge — tippe auf "Mag ich nicht" bei einer Zutat
         </div>`}
         <div style="display:flex;gap:8px">
           <input id="dislike-input" class="input" type="text" placeholder="Zutat die du nicht magst…" style="flex:1">
@@ -86,6 +106,15 @@ async function paint(container) {
       </div>
     </div>
   `;
+
+  // People selector
+  container.querySelectorAll('[data-people]').forEach(pill => {
+    pill.addEventListener('click', () => {
+      peopleCount = parseInt(pill.dataset.people);
+      container.querySelectorAll('[data-people]').forEach(p =>
+        p.classList.toggle('active', parseInt(p.dataset.people) === peopleCount));
+    });
+  });
 
   // Week navigation
   container.querySelector('#btn-prev-week').addEventListener('click', async () => {
@@ -101,25 +130,27 @@ async function paint(container) {
   container.querySelector('#btn-generate')?.addEventListener('click', async () => {
     if (!settings.apiKey) return;
     const btn = container.querySelector('#btn-generate');
-    btn.disabled = true;
-    btn.textContent = '⏳ Generiere 7 Rezepte…';
+    btn.disabled    = true;
+    btn.textContent = `⏳ Generiere 7 Rezepte${peopleCount > 1 ? ` für ${peopleCount} Personen` : ''}…`;
     try {
       const [freshDisliked, freshSettings] = await Promise.all([
         getDislikedIngredients(), getSettings(),
       ]);
       const freshPhase = PHASES.find(p => p.id === (freshSettings.phase ?? 'ausgewogen')) ?? PHASES[0];
-      const recipes = await generateWeeklyMeals(freshSettings.apiKey, {
-        phase: freshPhase,
-        disliked: freshDisliked,
+      const recipes    = await generateWeeklyMeals(freshSettings.apiKey, {
+        phase:      freshPhase,
+        disliked:   freshDisliked,
         dinnerKcal: 1100,
+        people:     peopleCount,
       });
       const plan = {
-        weekStart: currentWeekStart,
+        weekStart:   currentWeekStart,
         generatedAt: new Date().toISOString(),
-        days: weekDates.map((date, i) => ({
+        people:      peopleCount,
+        days:        weekDates.map((date, i) => ({
           date,
           dayName: DAYS_FULL[i],
-          recipe: recipes[i] ?? null,
+          recipe:  recipes[i] ?? null,
         })),
       };
       await saveWeekPlan(currentWeekStart, plan);
@@ -127,7 +158,7 @@ async function paint(container) {
       await paint(container);
     } catch (e) {
       showToast('Fehler: ' + e.message);
-      btn.disabled = false;
+      btn.disabled    = false;
       btn.textContent = weekPlan ? '🔄 Woche neu generieren' : '✨ Woche generieren';
     }
   });
@@ -136,7 +167,6 @@ async function paint(container) {
   container.querySelector('#btn-shopping')?.addEventListener('click', async () => {
     const plan = await getWeekPlan(currentWeekStart);
     if (!plan) return;
-
     const seen  = new Set();
     const items = [];
     for (const day of plan.days) {
@@ -152,7 +182,7 @@ async function paint(container) {
     showToast(`${items.length} Zutaten zur Einkaufsliste hinzugefügt ✓`);
   });
 
-  // Recipe expand / collapse
+  // Recipe expand/collapse
   container.querySelectorAll('.recipe-toggle').forEach(btn => {
     btn.addEventListener('click', () => {
       const card    = btn.closest('.day-card');
@@ -163,16 +193,16 @@ async function paint(container) {
     });
   });
 
-  // Mark ingredient as disliked from recipe
+  // Mark ingredient as disliked
   container.querySelectorAll('.dislike-ingredient').forEach(btn => {
     btn.addEventListener('click', async () => {
       const ingredient = btn.dataset.ingredient;
       const current    = await getDislikedIngredients();
       if (!current.includes(ingredient)) {
         await saveDislikedIngredients([...current, ingredient]);
-        btn.textContent  = '✓ Gemerkt';
-        btn.style.color  = 'var(--green)';
-        btn.disabled     = true;
+        btn.textContent = '✓ Gemerkt';
+        btn.style.color = 'var(--green)';
+        btn.disabled    = true;
         showToast(`"${ingredient}" gemerkt — gilt ab nächster Generierung`);
       }
     });
@@ -189,7 +219,6 @@ async function paint(container) {
     });
   });
 
-  // Add to dislike list
   const dislikeInput = container.querySelector('#dislike-input');
   const addDislike   = async () => {
     const val = dislikeInput.value.trim();
@@ -207,17 +236,19 @@ async function paint(container) {
 }
 
 // ── Day Card ──────────────────────────────────────────────
-
-function dayCard(date, dayShort, dayFull, recipe, isToday) {
+function dayCard(date, dayShort, dayFull, recipe, isToday, people) {
   const d       = new Date(date + 'T12:00:00');
   const dateStr = `${d.getDate()}. ${MONTHS[d.getMonth()]}`;
   const total   = 300 + 300 + (recipe?.kcal ?? 0);
+  const pLabel  = people > 1 ? ` (${people}×)` : '';
 
   return `
     <div class="day-card card" style="margin-bottom:10px${isToday ? ';border-color:var(--accent);border-width:2px' : ''}">
 
       <div style="padding:9px 14px;background:${isToday ? 'var(--accent-dim)' : 'var(--surface-2)'};border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-        <div style="font-size:14px;font-weight:700;color:${isToday ? 'var(--accent)' : 'var(--text)'}">${dayFull}${isToday ? ' <span style="font-size:10px;font-weight:500;margin-left:4px">Heute</span>' : ''}</div>
+        <div style="font-size:14px;font-weight:700;color:${isToday ? 'var(--accent)' : 'var(--text)'}">
+          ${dayFull}${isToday ? ' <span style="font-size:10px;font-weight:500;margin-left:4px">Heute</span>' : ''}
+        </div>
         <div style="font-size:12px;color:var(--text-3)">${dateStr}</div>
       </div>
 
@@ -244,7 +275,9 @@ function dayCard(date, dayShort, dayFull, recipe, isToday) {
         <div style="padding:8px 14px;display:flex;align-items:center;gap:10px">
           <span style="font-size:18px">🍽</span>
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(recipe.name)}</div>
+            <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${escHtml(recipe.name)}${pLabel}
+            </div>
             <div style="font-size:11px;color:var(--text-3)">Abendessen · ${recipe.protein ?? '?'}g Protein</div>
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
@@ -254,10 +287,14 @@ function dayCard(date, dayShort, dayFull, recipe, isToday) {
         </div>
 
         <div class="recipe-details" style="display:none;border-top:1px solid var(--border);padding:12px 14px">
-          <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:8px">Zutaten:</div>
+          <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:8px">
+            Zutaten${people > 1 ? ` (für ${people} Personen)` : ''}:
+          </div>
           ${(recipe.zutaten ?? []).map(z => `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);gap:8px">
-              <span style="font-size:12px;flex:1">${escHtml(z.name)} <span style="color:var(--text-3)">${z.menge} ${z.einheit}</span></span>
+              <span style="font-size:12px;flex:1">
+                ${escHtml(z.name)} <span style="color:var(--text-3)">${z.menge} ${z.einheit}</span>
+              </span>
               <button class="dislike-ingredient" data-ingredient="${escAttr(z.name)}"
                 style="background:var(--surface-3);border:none;border-radius:99px;padding:2px 8px;font-size:10px;color:var(--text-3);cursor:pointer;white-space:nowrap">
                 Mag ich nicht
@@ -288,7 +325,6 @@ function dayCard(date, dayShort, dayFull, recipe, isToday) {
 }
 
 // ── Helpers ───────────────────────────────────────────────
-
 function getWeekStart(date = new Date()) {
   const d   = new Date(date);
   const day = d.getDay();
@@ -319,5 +355,5 @@ function escHtml(str) {
 }
 
 function escAttr(str) {
-  return String(str ?? '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  return String(str ?? '').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }

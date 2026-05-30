@@ -27,9 +27,7 @@
 .btn-sm       { font-size: 13px; padding: 8px 14px; }
 
 /* ── Input ─────────────────────────────────────────────── */
-.input-group {
-  margin-bottom: 16px;
-}
+.input-group { margin-bottom: 16px; }
 
 .input-label {
   display: block;
@@ -53,18 +51,10 @@
   -webkit-appearance: none;
 }
 
-.input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-dim);
-}
-
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
 .input::placeholder { color: var(--text-3); }
 
-.input-with-btn {
-  display: flex;
-  gap: 8px;
-}
-
+.input-with-btn { display: flex; gap: 8px; }
 .input-with-btn .input { flex: 1; }
 .input-with-btn .btn { flex-shrink: 0; }
 
@@ -85,9 +75,7 @@
   gap: 12px;
 }
 
-.card-row + .card-row {
-  border-top: 1px solid var(--border);
-}
+.card-row + .card-row { border-top: 1px solid var(--border); }
 
 .card-icon {
   width: 40px;
@@ -125,7 +113,6 @@
 .entry-body { flex: 1; min-width: 0; }
 .entry-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .entry-meta { font-size: 12px; color: var(--text-2); margin-top: 2px; }
-
 .entry-kcal { font-size: 15px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
 
 .entry-del {
@@ -139,7 +126,6 @@
   line-height: 1;
   transition: color 0.15s, background 0.15s;
 }
-
 .entry-del:hover { color: var(--red); background: var(--red-dim); }
 
 /* ── Search Results ────────────────────────────────────── */
@@ -181,12 +167,7 @@
   gap: 12px;
 }
 
-.recipe-title {
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.3;
-  flex: 1;
-}
+.recipe-title { font-size: 18px; font-weight: 700; line-height: 1.3; flex: 1; }
 
 .recipe-kcal-badge {
   background: var(--accent-dim);
@@ -200,10 +181,7 @@
   flex-shrink: 0;
 }
 
-.recipe-ingredients {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-}
+.recipe-ingredients { padding: 12px 16px; border-bottom: 1px solid var(--border); }
 
 .ingredient-row {
   display: flex;
@@ -213,9 +191,7 @@
   border-bottom: 1px solid var(--border);
   font-size: 14px;
 }
-
 .ingredient-row:last-child { border-bottom: none; }
-
 .ingredient-name { color: var(--text); }
 .ingredient-amount { color: var(--text-2); font-size: 13px; }
 .ingredient-kcal { color: var(--accent); font-size: 13px; font-weight: 600; }
@@ -228,13 +204,20 @@
   border-bottom: 1px solid var(--border);
 }
 
-.recipe-actions {
-  padding: 12px 16px;
-  display: flex;
-  gap: 8px;
-}
+.recipe-actions { padding: 12px 16px; display: flex; gap: 8px; }
 
 /* ── Shopping List ─────────────────────────────────────── */
+.shop-category-header {
+  padding: 8px 16px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-3);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+
 .shop-item {
   display: flex;
   align-items: center;
@@ -244,7 +227,6 @@
   background: var(--surface);
   transition: background 0.1s;
 }
-
 .shop-item:last-child { border-bottom: none; }
 
 .shop-checkbox {
@@ -263,12 +245,7 @@
   appearance: none;
   outline: none;
 }
-
-.shop-checkbox:checked {
-  background: var(--green);
-  border-color: var(--green);
-}
-
+.shop-checkbox:checked { background: var(--green); border-color: var(--green); }
 .shop-checkbox:checked::after {
   content: '';
   width: 12px;
@@ -279,21 +256,9 @@
   display: block;
 }
 
-.shop-item-text {
-  flex: 1;
-  font-size: 15px;
-  transition: opacity 0.2s;
-}
-
-.shop-item.checked .shop-item-text {
-  opacity: 0.4;
-  text-decoration: line-through;
-}
-
-.shop-item-amount {
-  font-size: 13px;
-  color: var(--text-2);
-}
+.shop-item-text { flex: 1; font-size: 15px; transition: opacity 0.2s; }
+.shop-item.checked .shop-item-text { opacity: 0.4; text-decoration: line-through; }
+.shop-item-amount { font-size: 13px; color: var(--text-2); }
 
 .shop-item-del {
   background: none;
@@ -305,7 +270,6 @@
   border-radius: 6px;
   transition: color 0.15s;
 }
-
 .shop-item-del:hover { color: var(--red); }
 
 /* ── Pill Tabs ─────────────────────────────────────────── */
@@ -327,7 +291,6 @@
   color: var(--text-2);
   transition: all 0.15s;
 }
-
 .pill.active, .pill:active {
   background: var(--accent-dim);
   color: var(--accent);
@@ -335,11 +298,7 @@
 }
 
 /* ── Settings Rows ─────────────────────────────────────── */
-.settings-row {
-  padding: 16px;
-  border-bottom: 1px solid var(--border);
-}
-
+.settings-row { padding: 16px; border-bottom: 1px solid var(--border); }
 .settings-row:last-child { border-bottom: none; }
 
 .settings-label {
@@ -357,25 +316,6 @@
   line-height: 1.5;
 }
 
-/* ── Progress Dots ─────────────────────────────────────── */
-.day-dot-row {
-  display: flex;
-  gap: 6px;
-  justify-content: center;
-  padding: 4px 0 16px;
-}
-
-.day-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--surface-3);
-}
-
-.day-dot.filled   { background: var(--accent); }
-.day-dot.today    { background: var(--green); }
-.day-dot.over-day { background: var(--red); }
-
 /* ── AI Generator Form ─────────────────────────────────── */
 .gen-form {
   background: var(--surface);
@@ -385,18 +325,10 @@
   margin-bottom: 16px;
 }
 
-.gen-row {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 12px;
-}
+.gen-row { display: flex; gap: 10px; margin-bottom: 12px; }
+.gen-row .input-group { flex: 1; margin-bottom: 0; }
 
-.gen-row .input-group {
-  flex: 1;
-  margin-bottom: 0;
-}
-
-/* ── Streaks / Stats ───────────────────────────────────── */
+/* ── Stats / Streak ────────────────────────────────────── */
 .stat-row {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -411,14 +343,290 @@
   padding: 14px;
 }
 
-.stat-value {
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
+.stat-value { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
+.stat-label { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+
+/* ── Water Widget ──────────────────────────────────────── */
+.water-widget {
+  margin: 0 20px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
 }
 
-.stat-label {
-  font-size: 12px;
-  color: var(--text-2);
-  margin-top: 2px;
+.water-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
+
+.water-title {
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.water-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.water-bar-track {
+  height: 6px;
+  background: var(--surface-3);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.water-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #0ea5e9, #38bdf8);
+  transition: width 0.4s ease;
+}
+
+.water-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.water-btn {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #0ea5e922;
+  background: #0ea5e910;
+  color: #38bdf8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+.water-btn:active { background: #0ea5e925; transform: scale(0.97); }
+.water-btn.minus { color: var(--text-3); background: var(--surface-2); border-color: var(--border); }
+
+/* ── Profile Switcher ──────────────────────────────────── */
+#profile-btn {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  z-index: 50;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+#profile-btn:active { transform: scale(0.92); }
+
+#profile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 149;
+}
+#profile-overlay.hidden { display: none; }
+
+#profile-panel {
+  position: fixed;
+  top: 62px;
+  right: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  z-index: 150;
+  min-width: 160px;
+  overflow: hidden;
+  transform: translateY(-8px) scale(0.95);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.2s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+#profile-panel.open {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.profile-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--border);
+}
+.profile-item:last-child { border-bottom: none; }
+.profile-item:active { background: var(--surface-3); }
+.profile-item.active { background: var(--accent-dim); }
+.profile-item.active .profile-item-name { color: var(--accent); font-weight: 600; }
+
+.profile-item-emoji { font-size: 18px; }
+.profile-item-name { flex: 1; }
+.profile-item-check { color: var(--accent); font-weight: 700; font-size: 14px; }
+
+/* ── Week Bar Chart ────────────────────────────────────── */
+.week-bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 0 4px;
+  height: 52px;
+}
+
+.week-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+}
+
+.week-bar {
+  width: 100%;
+  min-width: 20px;
+  max-width: 32px;
+  border-radius: 3px 3px 0 0;
+  background: var(--surface-3);
+  transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 3px;
+}
+.week-bar.filled   { background: var(--accent); opacity: 0.7; }
+.week-bar.today    { background: var(--green); opacity: 1; }
+.week-bar.over-day { background: var(--red); opacity: 0.7; }
+
+.week-bar-label {
+  font-size: 9px;
+  color: var(--text-3);
+  text-align: center;
+}
+.week-bar-label.today { color: var(--green); font-weight: 700; }
+
+/* ── Routine Button ────────────────────────────────────── */
+.routine-btn-wrap {
+  padding: 0 20px 12px;
+}
+
+/* ── Copy Yesterday Banner ─────────────────────────────── */
+.copy-yesterday {
+  margin: 0 20px 10px;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* ── Claude Chat Widget ────────────────────────────────── */
+.chat-widget {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.chat-history {
+  min-height: 40px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 12px 14px;
+}
+
+.chat-msg {
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.chat-msg.user { color: var(--accent); font-weight: 600; }
+.chat-msg.claude { color: var(--text-2); }
+.chat-msg:last-child { margin-bottom: 0; }
+
+.chat-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.chat-input-row .input {
+  font-size: 14px;
+  padding: 10px 12px;
+}
+
+/* ── Greeting Header ───────────────────────────────────── */
+.greeting-header {
+  padding: 20px 20px 8px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.greeting-main {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+}
+
+.greeting-sub {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-top: 3px;
+}
+
+/* ── Streak Badge ──────────────────────────────────────── */
+.streak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--orange-dim);
+  color: var(--orange);
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0 20px 12px;
+}
+
+/* ── Routine Settings ──────────────────────────────────── */
+.routine-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.routine-item-row:last-child { border-bottom: none; }
+.routine-item-info { flex: 1; min-width: 0; }
+.routine-item-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.routine-item-meta { font-size: 11px; color: var(--text-3); margin-top: 1px; }

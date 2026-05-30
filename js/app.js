@@ -5,6 +5,7 @@ import { renderShopping }   from './views/shopping.js';
 import { renderWeekplan }   from './views/weekplan.js';
 import { renderBody }       from './views/body.js';
 import { renderSettings }   from './views/settings.js';
+import { initDB, getProfiles, getActiveProfileId, switchProfile } from './db.js';
 
 const views = {
   dashboard: renderDashboard,
@@ -39,15 +40,11 @@ export async function navigate(view) {
 // ── Modal ─────────────────────────────────────────────────
 export function openModal(renderFn) {
   const overlay = document.getElementById('modal-overlay');
-  const box = document.getElementById('modal-box');
+  const box     = document.getElementById('modal-box');
   box.innerHTML = '<div class="modal-handle"></div>';
   renderFn(box);
   overlay.classList.remove('hidden');
-
-  const close = (e) => {
-    if (e.target === overlay) closeModal();
-  };
-  overlay.addEventListener('click', close, { once: true });
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); }, { once: true });
 }
 
 export function closeModal() {
@@ -65,8 +62,63 @@ export function showToast(msg) {
   toastTimer = setTimeout(() => toast.classList.remove('visible'), 2200);
 }
 
+// ── Profile Switcher ──────────────────────────────────────
+async function initProfileSwitcher() {
+  const btn     = document.getElementById('profile-btn');
+  const panel   = document.getElementById('profile-panel');
+  const overlay = document.getElementById('profile-overlay');
+  if (!btn || !panel) return;
+
+  const updateBtn = async () => {
+    const profiles = await getProfiles();
+    const active   = profiles.find(p => p.id === getActiveProfileId()) ?? profiles[0];
+    if (active) {
+      btn.textContent     = active.emoji;
+      btn.title           = active.name;
+      btn.style.background = active.color + '22';
+      btn.style.borderColor = active.color + '66';
+    }
+  };
+
+  const closePanel = () => {
+    panel.classList.remove('open');
+    overlay.classList.add('hidden');
+  };
+
+  const openPanel = async () => {
+    const profiles = await getProfiles();
+    const pid      = getActiveProfileId();
+    panel.innerHTML = profiles.map(p => `
+      <button class="profile-item ${p.id === pid ? 'active' : ''}" data-pid="${p.id}" style="--pc:${p.color}">
+        <span class="profile-item-emoji">${p.emoji}</span>
+        <span class="profile-item-name">${p.name}</span>
+        ${p.id === pid ? '<span class="profile-item-check">✓</span>' : ''}
+      </button>`).join('');
+    panel.classList.add('open');
+    overlay.classList.remove('hidden');
+
+    panel.querySelectorAll('.profile-item').forEach(item => {
+      item.addEventListener('click', async () => {
+        await switchProfile(item.dataset.pid);
+        await updateBtn();
+        closePanel();
+        navigate(currentView);
+      });
+    });
+  };
+
+  btn.addEventListener('click', () =>
+    panel.classList.contains('open') ? closePanel() : openPanel()
+  );
+  overlay.addEventListener('click', closePanel);
+
+  await updateBtn();
+}
+
 // ── Init ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  await initDB();
+
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
@@ -79,11 +131,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (e.key === 'Escape') closeModal();
   });
 
+  await initProfileSwitcher();
+
   const hash = location.hash.slice(1);
   await navigate(views[hash] ? hash : 'dashboard');
 });
 
-// Re-render current view (called by sub-views after data changes)
 export function refresh() {
   navigate(currentView);
 }

@@ -1,4 +1,9 @@
-import { getTodayLog, sumLog, sumByMeal, entriesByMeal, getWeekLogs, getSettings, getLogForDate, removeFoodEntry, PHASES } from '../db.js';
+import {
+  getTodayLog, sumLog, sumByMeal, entriesByMeal, getWeekLogs,
+  getSettings, getLogForDate, removeFoodEntry, PHASES,
+  getStreak, getWaterToday, addWater, setWaterToday,
+  copyDayEntries, addFoodEntry, getProfiles, getActiveProfileId,
+} from '../db.js';
 import { navigate, showToast, refresh } from '../app.js';
 
 const RING_R    = 75;
@@ -12,11 +17,13 @@ const MEALS = [
   { key: 'getraenke',   label: 'Getränke',    icon: '🥤', pct: 0     },
 ];
 
-function dateLabel() {
-  const d      = new Date();
-  const days   = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
-  const months = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
-  return `${days[d.getDay()]}, ${d.getDate()}. ${months[d.getMonth()]}`;
+const DAYS_SHORT = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Guten Morgen';
+  if (h < 18) return 'Guten Tag';
+  return 'Guten Abend';
 }
 
 function ringOffset(consumed, goal) {
@@ -46,41 +53,81 @@ function yesterday() {
   return d.toISOString().split('T')[0];
 }
 
+function weekBarsHtml(weekLogs, effectiveGoal) {
+  const maxKcal = Math.max(...weekLogs.map(d => d.sum.kcal), effectiveGoal) || 1;
+  const barH    = 36;
+  return weekLogs.map((d, i) => {
+    const isToday  = i === 6;
+    const hasData  = d.sum.kcal > 50;
+    const isOver   = hasData && d.sum.kcal > effectiveGoal;
+    const pct      = hasData ? Math.min(d.sum.kcal / maxKcal, 1) : 0;
+    const h        = Math.max(Math.round(pct * barH), 3);
+    const dayDate  = new Date(d.date + 'T12:00:00');
+    const dayLabel = DAYS_SHORT[dayDate.getDay()];
+    let cls = '';
+    if (isToday && hasData) cls = 'today';
+    else if (isOver)        cls = 'over-day';
+    else if (hasData)       cls = 'filled';
+
+    return `
+      <div class="week-bar-wrap" title="${d.date}: ${d.sum.kcal} kcal">
+        <div class="week-bar ${cls}" style="height:${h}px"></div>
+        <div class="week-bar-label ${isToday ? 'today' : ''}">${dayLabel}</div>
+      </div>`;
+  }).join('');
+}
+
 export async function renderDashboard(container) {
-  const [log, settings, weekLogs, yesterdayLog] = await Promise.all([
+  const [log, settings, weekLogs, yesterdayLog, streak, waterMl, profiles] = await Promise.all([
     getTodayLog(), getSettings(), getWeekLogs(), getLogForDate(yesterday()),
+    getStreak(), getWaterToday(), getProfiles(),
   ]);
 
-  const phase         = PHASES.find(p => p.id === (settings.phase ?? 'ausgewogen')) ?? PHASES[0];
-  const totals        = sumLog(log);
-  const byMeal        = entriesByMeal(log);
-  const mealKcal      = sumByMeal(log);
-  const effectiveGoal = settings.dailyGoal + phase.offset;
-  const totalBudget   = effectiveGoal + (settings.activityKcal ?? 0);
-  const remaining     = totalBudget - totals.kcal;
+  const pid            = getActiveProfileId();
+  const profile        = profiles.find(p => p.id === pid) ?? { name: pid, emoji: '👤', color: '#6C63FF' };
+  const phase          = PHASES.find(p => p.id === (settings.phase ?? 'ausgewogen')) ?? PHASES[0];
+  const totals         = sumLog(log);
+  const byMeal         = entriesByMeal(log);
+  const mealKcal       = sumByMeal(log);
+  const effectiveGoal  = settings.dailyGoal + phase.offset;
+  const totalBudget    = effectiveGoal + (settings.activityKcal ?? 0);
+  const remaining      = totalBudget - totals.kcal;
+  const isOverToday    = totals.kcal > totalBudget;
+  const waterGoal      = settings.waterGoalMl ?? 2500;
+  const waterPct       = Math.min(waterMl / waterGoal * 100, 100).toFixed(0);
 
-  // Phase-based macro goals
   const proteinGoal = Math.round(totalBudget * phase.macros.protein / 100 / 4);
   const carbsGoal   = Math.round(totalBudget * phase.macros.carbs   / 100 / 4);
   const fatGoal     = Math.round(totalBudget * phase.macros.fat     / 100 / 9);
 
-  // Yesterday surplus for compensation banner
   const yesterdayTotals  = sumLog(yesterdayLog);
   const yesterdaySurplus = yesterdayTotals.kcal > 50
-    ? Math.max(0, yesterdayTotals.kcal - effectiveGoal)
-    : 0;
+    ? Math.max(0, yesterdayTotals.kcal - effectiveGoal) : 0;
   const compensation = Math.min(Math.round(yesterdaySurplus / 2), 300);
 
-  const isOverToday = totals.kcal > totalBudget;
+  const hasRoutine     = (settings.routine ?? []).length > 0;
+  const hasYesterday   = yesterdayTotals.kcal > 50;
+
+  const months = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+  const now    = new Date();
+  const dateStr = `${now.getDate()}. ${months[now.getMonth()]}`;
 
   container.innerHTML = `
-    <header class="view-header">
+    <!-- Greeting Header -->
+    <div class="greeting-header">
       <div>
-        <h1>Dashboard</h1>
-        <div class="subtitle">${dateLabel()}</div>
+        <div class="greeting-main">${greeting()}, ${profile.name}! ${profile.emoji}</div>
+        <div class="greeting-sub">${dateStr} · Phase: <strong style="color:var(--accent)">${phase.label}</strong></div>
       </div>
-    </header>
+    </div>
 
+    <!-- Streak -->
+    ${streak > 0 ? `
+    <div style="padding:0 20px 8px">
+      <span class="streak-badge">🔥 ${streak} Tag${streak !== 1 ? 'e' : ''} in Folge</span>
+    </div>` : ''}
+
+    <!-- Warnings -->
     ${yesterdaySurplus > 50 ? `
     <div class="section" style="padding-bottom:0">
       <div style="background:var(--orange-dim);border:1px solid var(--orange);border-radius:var(--radius-sm);padding:10px 14px;font-size:13px">
@@ -102,10 +149,10 @@ export async function renderDashboard(container) {
       <div class="ring-container">
         <svg class="calorie-ring" viewBox="0 0 170 170">
           <circle class="ring-bg"   cx="85" cy="85" r="${RING_R}"/>
-          <circle class="ring-fill ${ringClass(totals.kcal, totalBudget)}"
+          <circle class="ring-fill ${ringClass(totals.kcal, totalBudget)}" id="ring-fill-circle"
             cx="85" cy="85" r="${RING_R}"
             stroke-dasharray="${RING_CIRC.toFixed(1)}"
-            stroke-dashoffset="${ringOffset(totals.kcal, totalBudget).toFixed(1)}"/>
+            stroke-dashoffset="${RING_CIRC.toFixed(1)}"/>
         </svg>
         <div class="ring-center">
           <div class="kcal-value">${Math.round(totals.kcal)}</div>
@@ -117,22 +164,28 @@ export async function renderDashboard(container) {
           </div>
         </div>
       </div>
-      <div class="day-dot-row">
-        ${weekLogs.map((d, i) => {
-          const isToday = i === 6;
-          const hasData = d.sum.kcal > 50;
-          const isOver  = hasData && d.sum.kcal > effectiveGoal;
-          let cls = '';
-          if (isToday)  cls = 'today';
-          else if (isOver) cls = 'over-day';
-          else if (hasData) cls = 'filled';
-          return `<div class="day-dot ${cls}" title="${d.date}: ${d.sum.kcal} kcal"></div>`;
-        }).join('')}
+
+      <!-- Week bar chart -->
+      <div class="week-bars" style="margin-top:12px;padding:0 24px">
+        ${weekBarsHtml(weekLogs, effectiveGoal)}
       </div>
       <div style="font-size:11px;color:var(--text-3);text-align:center;margin-top:4px">
-        Phase: <strong style="color:var(--accent)">${phase.label}</strong> · P${phase.macros.protein}% K${phase.macros.carbs}% F${phase.macros.fat}%
+        P${phase.macros.protein}% K${phase.macros.carbs}% F${phase.macros.fat}%
       </div>
     </div>
+
+    <!-- Routine + Copy Yesterday Quick Actions -->
+    ${hasRoutine || hasYesterday ? `
+    <div style="display:flex;gap:8px;padding:0 20px 12px">
+      ${hasRoutine ? `
+      <button class="btn btn-ghost btn-sm" id="btn-routine" style="flex:1;background:var(--accent-dim);color:var(--accent);border-color:var(--accent)">
+        ⚡ Routine tracken
+      </button>` : ''}
+      ${hasYesterday ? `
+      <button class="btn btn-ghost btn-sm" id="btn-copy-yesterday" style="flex:1">
+        📋 Gestern kopieren
+      </button>` : ''}
+    </div>` : ''}
 
     <!-- Makros -->
     <div class="macro-row">
@@ -150,6 +203,23 @@ export async function renderDashboard(container) {
         <div class="m-value">${Math.round(totals.fat)}g</div>
         <div class="m-label">Fett</div>
         ${macroBar(totals.fat, fatGoal)}
+      </div>
+    </div>
+
+    <!-- Wasser Widget -->
+    <div class="water-widget">
+      <div class="water-header">
+        <div class="water-title">💧 Wasser</div>
+        <div class="water-value">${(waterMl / 1000).toFixed(2).replace('.', ',')}L / ${(waterGoal / 1000).toFixed(1).replace('.', ',')}L</div>
+      </div>
+      <div class="water-bar-track">
+        <div class="water-bar-fill" style="width:${waterPct}%"></div>
+      </div>
+      <div class="water-btns">
+        <button class="water-btn minus" id="btn-water-minus">−250ml</button>
+        <button class="water-btn" id="btn-water-250">+250ml</button>
+        <button class="water-btn" id="btn-water-500">+500ml</button>
+        <button class="water-btn" id="btn-water-750">+750ml</button>
       </div>
     </div>
 
@@ -229,16 +299,23 @@ export async function renderDashboard(container) {
     </div>
   `;
 
-  // Mahlzeit-Header togglet Einträge
+  // Animate ring after render
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const ring = container.querySelector('#ring-fill-circle');
+      if (ring) ring.style.strokeDashoffset = ringOffset(totals.kcal, totalBudget).toFixed(1);
+    });
+  });
+
+  // Meal header toggle
   container.querySelectorAll('.meal-header').forEach(h => {
     h.addEventListener('click', () => {
-      const key  = h.dataset.meal;
-      const list = container.querySelector(`#entries-${key}`);
+      const list = container.querySelector(`#entries-${h.dataset.meal}`);
       if (list) list.style.display = list.style.display === 'none' ? '' : 'none';
     });
   });
 
-  // "+ X hinzufügen" → Tracken-Tab mit vorausgewählter Mahlzeit
+  // Add meal button
   container.querySelectorAll('[data-add-meal]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
@@ -247,7 +324,7 @@ export async function renderDashboard(container) {
     });
   });
 
-  // Eintrag löschen
+  // Delete entry
   container.querySelectorAll('.entry-del').forEach(btn => {
     btn.addEventListener('click', async e => {
       e.stopPropagation();
@@ -255,6 +332,64 @@ export async function renderDashboard(container) {
       showToast('Eintrag gelöscht');
       refresh();
     });
+  });
+
+  // Water buttons
+  const updateWaterWidget = async (newMl) => {
+    const goal = settings.waterGoalMl ?? 2500;
+    const pct  = Math.min(newMl / goal * 100, 100).toFixed(0);
+    container.querySelector('.water-bar-fill').style.width = `${pct}%`;
+    container.querySelector('.water-value').textContent =
+      `${(newMl / 1000).toFixed(2).replace('.', ',')}L / ${(goal / 1000).toFixed(1).replace('.', ',')}L`;
+  };
+
+  container.querySelector('#btn-water-minus')?.addEventListener('click', async () => {
+    const v = await addWater(-250);
+    await updateWaterWidget(v);
+  });
+  container.querySelector('#btn-water-250')?.addEventListener('click', async () => {
+    const v = await addWater(250);
+    await updateWaterWidget(v);
+    showToast('💧 +250ml');
+  });
+  container.querySelector('#btn-water-500')?.addEventListener('click', async () => {
+    const v = await addWater(500);
+    await updateWaterWidget(v);
+    showToast('💧 +500ml');
+  });
+  container.querySelector('#btn-water-750')?.addEventListener('click', async () => {
+    const v = await addWater(750);
+    await updateWaterWidget(v);
+    showToast('💧 +750ml');
+  });
+
+  // Routine tracken
+  container.querySelector('#btn-routine')?.addEventListener('click', async () => {
+    const s       = await getSettings();
+    const routine = s.routine ?? [];
+    if (!routine.length) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayLog = await (await import('../db.js')).getTodayLog();
+    let added = 0;
+    for (const item of routine) {
+      const { id: _id, ...entry } = item;
+      await addFoodEntry({ ...entry });
+      added++;
+    }
+    showToast(`✅ ${added} Routine-Einträge getrackt`);
+    refresh();
+  });
+
+  // Gestern kopieren
+  container.querySelector('#btn-copy-yesterday')?.addEventListener('click', async () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const result   = await copyDayEntries(yesterday(), todayStr);
+    if (result) {
+      showToast(`📋 ${result.entries.length} Einträge von gestern kopiert`);
+      refresh();
+    } else {
+      showToast('Gestern keine Einträge');
+    }
   });
 }
 
