@@ -236,3 +236,21 @@ export async function getDislikedIngredients() {
 export async function saveDislikedIngredients(list) {
   await set('disliked_ingredients', list);
 }
+
+// ── Food History (Häufig verwendet) ──────────────────────
+export async function getFoodHistory() {
+  return (await get('food_history')) ?? [];
+}
+
+export async function updateFoodHistory(product) {
+  const history = await getFoodHistory();
+  const key     = `${product.name}|${product.brand ?? ''}`.toLowerCase();
+  const idx     = history.findIndex(h => `${h.name}|${h.brand ?? ''}`.toLowerCase() === key);
+  if (idx >= 0) {
+    history[idx] = { ...history[idx], count: history[idx].count + 1, lastUsed: Date.now() };
+  } else {
+    history.unshift({ ...product, count: 1, lastUsed: Date.now() });
+  }
+  history.sort((a, b) => b.count !== a.count ? b.count - a.count : b.lastUsed - a.lastUsed);
+  await set('food_history', history.slice(0, 40));
+}

@@ -1,22 +1,41 @@
 // ── Open Food Facts ───────────────────────────────────────
 export async function searchFood(query) {
-  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=15&fields=product_name,nutriments,brands,quantity`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Netzwerkfehler');
-  const data = await res.json();
+  const fields = 'product_name,nutriments,brands,quantity,serving_size,serving_quantity';
+  const base   = 'https://world.openfoodfacts.org/cgi/search.pl';
+  const q      = encodeURIComponent(query);
 
-  return (data.products ?? [])
-    .filter(p => p.product_name && p.nutriments?.['energy-kcal_100g'] != null)
-    .map(p => ({
-      name:         p.product_name,
-      brand:        p.brands ?? '',
-      quantity:     p.quantity ?? '',
-      kcal_100g:    Math.round(p.nutriments['energy-kcal_100g'] ?? 0),
-      protein_100g: Math.round((p.nutriments['proteins_100g'] ?? 0) * 10) / 10,
-      carbs_100g:   Math.round((p.nutriments['carbohydrates_100g'] ?? 0) * 10) / 10,
-      fat_100g:     Math.round((p.nutriments['fat_100g'] ?? 0) * 10) / 10,
-    }))
-    .slice(0, 10);
+  // Parallel: name search + brand search
+  const [nameData, brandData] = await Promise.all([
+    fetch(`${base}?search_terms=${q}&json=1&page_size=20&fields=${fields}`)
+      .then(r => r.json()).catch(() => ({ products: [] })),
+    fetch(`${base}?tagtype_0=brands&tag_contains_0=contains&tag_0=${q}&json=1&page_size=20&fields=${fields}`)
+      .then(r => r.json()).catch(() => ({ products: [] })),
+  ]);
+
+  const isValid   = p => p.product_name && p.nutriments?.['energy-kcal_100g'] != null;
+  const mapProduct = p => ({
+    name:             p.product_name,
+    brand:            p.brands ?? '',
+    quantity:         p.quantity ?? '',
+    serving_size:     p.serving_size ?? '',
+    serving_quantity: p.serving_quantity ? Math.round(p.serving_quantity) : null,
+    kcal_100g:        Math.round(p.nutriments['energy-kcal_100g'] ?? 0),
+    protein_100g:     Math.round((p.nutriments['proteins_100g'] ?? 0) * 10) / 10,
+    carbs_100g:       Math.round((p.nutriments['carbohydrates_100g'] ?? 0) * 10) / 10,
+    fat_100g:         Math.round((p.nutriments['fat_100g'] ?? 0) * 10) / 10,
+  });
+
+  // Brand matches first, then name matches, dedup by name+brand
+  const seen   = new Set();
+  const result = [];
+  for (const p of [
+    ...(brandData.products ?? []).filter(isValid).map(mapProduct),
+    ...(nameData.products  ?? []).filter(isValid).map(mapProduct),
+  ]) {
+    const key = `${p.name}|${p.brand}`.toLowerCase();
+    if (!seen.has(key)) { seen.add(key); result.push(p); }
+  }
+  return result.slice(0, 15);
 }
 
 // ── Open Food Facts — Barcode Lookup ─────────────────────
@@ -27,13 +46,15 @@ export async function lookupBarcode(barcode) {
   if (data.status !== 1 || !data.product) throw new Error('Produkt nicht gefunden');
   const p = data.product;
   return {
-    name:         p.product_name || p.product_name_de || 'Unbekanntes Produkt',
-    brand:        p.brands ?? '',
-    quantity:     p.quantity ?? '',
-    kcal_100g:    Math.round(p.nutriments?.['energy-kcal_100g'] ?? 0),
-    protein_100g: Math.round((p.nutriments?.['proteins_100g'] ?? 0) * 10) / 10,
-    carbs_100g:   Math.round((p.nutriments?.['carbohydrates_100g'] ?? 0) * 10) / 10,
-    fat_100g:     Math.round((p.nutriments?.['fat_100g'] ?? 0) * 10) / 10,
+    name:             p.product_name || p.product_name_de || 'Unbekanntes Produkt',
+    brand:            p.brands ?? '',
+    quantity:         p.quantity ?? '',
+    serving_size:     p.serving_size ?? '',
+    serving_quantity: p.serving_quantity ? Math.round(p.serving_quantity) : null,
+    kcal_100g:        Math.round(p.nutriments?.['energy-kcal_100g'] ?? 0),
+    protein_100g:     Math.round((p.nutriments?.['proteins_100g'] ?? 0) * 10) / 10,
+    carbs_100g:       Math.round((p.nutriments?.['carbohydrates_100g'] ?? 0) * 10) / 10,
+    fat_100g:         Math.round((p.nutriments?.['fat_100g'] ?? 0) * 10) / 10,
   };
 }
 

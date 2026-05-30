@@ -1,5 +1,5 @@
 import { searchFood, lookupBarcode } from '../api.js';
-import { addFoodEntry }              from '../db.js';
+import { addFoodEntry, getFoodHistory, updateFoodHistory } from '../db.js';
 import { openModal, closeModal, showToast, navigate } from '../app.js';
 
 let debounceTimer;
@@ -12,9 +12,15 @@ const MEAL_TYPES = [
   { key: 'getraenke',   label: 'Getränke',    icon: '🥤' },
 ];
 
+const QUICK_AMOUNTS = [30, 50, 100, 150, 200, 300];
+
 export async function renderFoodLog(container) {
   const preselected = window._preselectedMeal ?? 'fruehstueck';
   window._preselectedMeal = null;
+
+  const history    = await getFoodHistory();
+  const hasHistory = history.length > 0;
+  const topItems   = hasHistory ? history.slice(0, 8) : quickAddItems;
 
   container.innerHTML = `
     <header class="view-header">
@@ -24,7 +30,6 @@ export async function renderFoodLog(container) {
       </div>
     </header>
 
-    <!-- Mahlzeit wählen -->
     <div class="section">
       <div class="section-label">Für welche Mahlzeit?</div>
       <div class="pill-tabs" style="padding:0 0 4px;flex-wrap:wrap">
@@ -35,7 +40,6 @@ export async function renderFoodLog(container) {
       </div>
     </div>
 
-    <!-- Suche + Scanner -->
     <div class="section" style="padding-top:0">
       <button class="btn btn-primary" id="btn-scan" style="margin-bottom:10px">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -46,7 +50,7 @@ export async function renderFoodLog(container) {
       </button>
       <div class="input-with-btn">
         <input id="search-input" class="input" type="search"
-          placeholder="Produkt suchen (z.B. Banane, Hähnchen…)"
+          placeholder="Produkt oder Marke suchen…"
           autocomplete="off" autocorrect="off" spellcheck="false">
         <button class="btn btn-primary" id="btn-search" style="width:auto;padding:12px 16px">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -59,18 +63,23 @@ export async function renderFoodLog(container) {
     <div id="search-results" class="section" style="padding-top:0"></div>
 
     <div class="section">
-      <div class="section-label">Schnell hinzufügen</div>
-      <div class="card" id="quick-add-list">
-        ${quickAddItems.map(item => `
-          <div class="search-result" data-quick='${JSON.stringify(item)}'>
-            <div class="sr-info">
-              <div class="sr-name">${item.name}</div>
-              <div class="sr-brand">${item.portion}</div>
-            </div>
-            <div class="sr-kcal">${item.kcal_100g}<span> kcal/100g</span></div>
-          </div>`).join('')}
+      <div class="section-label">${hasHistory ? 'Häufig verwendet' : 'Schnell hinzufügen'}</div>
+      <div class="card" id="quick-list">
+        ${topItems.map(item => quickRow(item)).join('')}
       </div>
     </div>
+
+    ${hasHistory ? `
+    <div class="section" style="padding-top:0">
+      <details>
+        <summary style="cursor:pointer;padding:8px 0;font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.8px;list-style:none">
+          ▸ Basis-Lebensmittel
+        </summary>
+        <div class="card" id="quick-basics" style="margin-top:8px">
+          ${quickAddItems.map(item => quickRow(item)).join('')}
+        </div>
+      </details>
+    </div>` : ''}
   `;
 
   let selectedMeal = preselected;
@@ -78,7 +87,8 @@ export async function renderFoodLog(container) {
   container.querySelectorAll('.meal-pill').forEach(pill => {
     pill.addEventListener('click', () => {
       selectedMeal = pill.dataset.meal;
-      container.querySelectorAll('.meal-pill').forEach(p => p.classList.toggle('active', p.dataset.meal === selectedMeal));
+      container.querySelectorAll('.meal-pill').forEach(p =>
+        p.classList.toggle('active', p.dataset.meal === selectedMeal));
     });
   });
 
@@ -112,10 +122,34 @@ export async function renderFoodLog(container) {
 
   btnScan.addEventListener('click', () => openScannerModal(resultsEl, () => selectedMeal));
 
-  container.querySelector('#quick-add-list').addEventListener('click', e => {
+  container.querySelector('#quick-list').addEventListener('click', e => {
     const row = e.target.closest('[data-quick]');
     if (row) openAmountModal(JSON.parse(row.dataset.quick), () => selectedMeal);
   });
+
+  container.querySelector('#quick-basics')?.addEventListener('click', e => {
+    const row = e.target.closest('[data-quick]');
+    if (row) openAmountModal(JSON.parse(row.dataset.quick), () => selectedMeal);
+  });
+}
+
+function quickRow(item) {
+  const safe = JSON.stringify(item).replace(/'/g, "&#39;");
+  let sub;
+  if (item.count) {
+    const brand = item.brand ? escHtml(item.brand) + ' · ' : '';
+    sub = `${brand}${item.count}× verwendet`;
+  } else {
+    sub = item.portion ?? (item.brand ? escHtml(item.brand) : '');
+  }
+  return `
+    <div class="search-result" data-quick='${safe}'>
+      <div class="sr-info">
+        <div class="sr-name">${escHtml(item.name)}</div>
+        <div class="sr-brand">${sub}</div>
+      </div>
+      <div class="sr-kcal">${item.kcal_100g}<span> kcal/100g</span></div>
+    </div>`;
 }
 
 // ── Barcode Scanner ───────────────────────────────────────
@@ -162,7 +196,6 @@ function openScannerModal(resultsEl, getMeal) {
         video.srcObject = s;
         video.play();
 
-        // Load polyfill if native BarcodeDetector is unavailable
         if (!('BarcodeDetector' in window)) {
           try {
             const mod = await import('https://cdn.jsdelivr.net/npm/@undecaf/barcode-detector-polyfill@0.9.21/dist/es/index.js');
@@ -209,14 +242,19 @@ function renderResults(container, results, getMeal) {
   container.innerHTML = `
     <div class="section-label" style="padding:0 0 10px">Suchergebnisse (${results.length})</div>
     <div class="card">
-      ${results.map(r => `
+      ${results.map(r => {
+        const meta    = [r.brand, r.quantity].filter(Boolean).map(escHtml).join(' · ');
+        const serving = r.serving_quantity
+          ? `<span style="color:var(--accent)"> · ${r.serving_quantity}g Portion</span>` : '';
+        return `
         <div class="search-result" data-result='${JSON.stringify(r).replace(/'/g,"&#39;")}'>
           <div class="sr-info">
             <div class="sr-name">${escHtml(r.name)}</div>
-            <div class="sr-brand">${escHtml(r.brand)}${r.quantity ? ' · ' + escHtml(r.quantity) : ''}</div>
+            <div class="sr-brand">${meta}${serving}</div>
           </div>
           <div class="sr-kcal">${r.kcal_100g}<span> kcal/100g</span></div>
-        </div>`).join('')}
+        </div>`;
+      }).join('')}
     </div>`;
 
   container.querySelectorAll('.search-result[data-result]').forEach(row => {
@@ -227,37 +265,71 @@ function renderResults(container, results, getMeal) {
 // ── Amount Modal ──────────────────────────────────────────
 function openAmountModal(product, getMeal) {
   openModal(box => {
-    const meal = MEAL_TYPES.find(m => m.key === getMeal()) ?? MEAL_TYPES[0];
+    const meal          = MEAL_TYPES.find(m => m.key === getMeal()) ?? MEAL_TYPES[0];
+    const defaultAmount = product.serving_quantity ?? 100;
+    const quickAmounts  = product.serving_quantity
+      ? QUICK_AMOUNTS.filter(g => g !== product.serving_quantity)
+      : QUICK_AMOUNTS;
+
+    const portionBtn = product.serving_quantity
+      ? `<button class="pill active" data-amount="${product.serving_quantity}" style="font-size:12px">${product.serving_quantity}g Portion</button>`
+      : '';
+
     box.innerHTML += `
       <div class="modal-title">Menge eingeben</div>
       <div style="padding:0 20px 16px">
-        <div style="margin-bottom:16px">
-          <div style="font-size:16px;font-weight:600;margin-bottom:4px">${escHtml(product.name)}</div>
-          <div style="font-size:13px;color:var(--text-2)">${product.kcal_100g} kcal/100g · ${meal.icon} ${meal.label}</div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:16px;font-weight:600;margin-bottom:2px">${escHtml(product.name)}</div>
+          <div style="font-size:13px;color:var(--text-2)">${product.kcal_100g} kcal/100g${product.brand ? ' · ' + escHtml(product.brand) : ''}</div>
+          <div style="font-size:12px;color:var(--text-3);margin-top:2px">${meal.icon} ${meal.label}</div>
+        </div>
+        <div class="pill-tabs" style="flex-wrap:wrap;gap:6px;margin-bottom:12px;padding:0">
+          ${portionBtn}
+          ${quickAmounts.map(g =>
+            `<button class="pill ${!product.serving_quantity && g === 100 ? 'active' : ''}" data-amount="${g}" style="font-size:12px">${g}g</button>`
+          ).join('')}
         </div>
         <div class="input-group">
-          <label class="input-label">Menge (in Gramm)</label>
-          <input id="amount-input" class="input" type="number" min="1" max="2000" value="100" inputmode="numeric">
+          <label class="input-label">Exakte Menge (Gramm)</label>
+          <input id="amount-input" class="input" type="number" min="1" max="2000"
+            value="${defaultAmount}" inputmode="numeric">
         </div>
         <div id="kcal-preview" style="text-align:center;font-size:22px;font-weight:800;color:var(--accent);margin-bottom:16px">
-          ${product.kcal_100g} kcal
+          ${Math.round(product.kcal_100g * defaultAmount / 100)} kcal
         </div>
         <button class="btn btn-primary" id="btn-confirm-add">Zum Tracker hinzufügen</button>
       </div>`;
 
     const amountInput = box.querySelector('#amount-input');
     const preview     = box.querySelector('#kcal-preview');
+    const pills       = box.querySelectorAll('[data-amount]');
 
-    amountInput.select();
-    amountInput.addEventListener('input', () => {
+    const updatePreview = () => {
       const g = parseFloat(amountInput.value) || 0;
       preview.textContent = `${Math.round(product.kcal_100g * g / 100)} kcal`;
+    };
+
+    pills.forEach(btn => {
+      btn.addEventListener('click', () => {
+        amountInput.value = btn.dataset.amount;
+        updatePreview();
+        pills.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
     });
+
+    amountInput.addEventListener('input', () => {
+      updatePreview();
+      pills.forEach(b => b.classList.remove('active'));
+    });
+    amountInput.select();
 
     box.querySelector('#btn-confirm-add').addEventListener('click', async () => {
       const amount = parseFloat(amountInput.value);
       if (!amount || amount <= 0) return;
-      await addFoodEntry({ ...product, amount, meal_type: getMeal() });
+      const { count, lastUsed, ...cleanProduct } = product;
+      await addFoodEntry({ ...cleanProduct, amount, meal_type: getMeal() });
+      await updateFoodHistory(cleanProduct);
       closeModal();
       showToast(`${product.name.slice(0, 20)} getrackt`);
       navigate('dashboard');
