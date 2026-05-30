@@ -135,13 +135,9 @@ export async function renderRecipes(container) {
       <div class="chat-widget">
         <div class="chat-history" id="chat-history">
           ${chatHistory.length === 0
-            ? `<div style="font-size:13px;color:var(--text-3);text-align:center;padding:8px 0">
-                 Stell mir eine Frage zu Ernährung, Kalorien oder Rezepten!
-               </div>`
+            ? `<div class="chat-empty-hint">🤖 Stell mir eine Frage zu Ernährung,<br>Kalorien oder Rezepten!</div>`
             : chatHistory.map(m => `
-                <div class="chat-msg ${m.role}">
-                  ${m.role === 'user' ? '👤 ' : '🤖 '}${escHtml(m.text)}
-                </div>`).join('')}
+                <div class="chat-msg ${m.role}">${escHtml(m.text)}</div>`).join('')}
         </div>
         <div class="chat-input-row">
           <input id="chat-input" class="input" type="text"
@@ -254,11 +250,11 @@ function totalsForChat(t) {
 }
 
 function appendChatMsg(el, role, text) {
-  const empty = el.querySelector('[style*="text-align:center"]');
-  if (empty) el.innerHTML = '';
+  const hint = el.querySelector('.chat-empty-hint');
+  if (hint) hint.remove();
   const div = document.createElement('div');
   div.className = `chat-msg ${role}`;
-  div.textContent = (role === 'user' ? '👤 ' : '🤖 ') + text;
+  div.textContent = text;
   el.appendChild(div);
 }
 

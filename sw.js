@@ -1,20 +1,20 @@
-const CACHE = 'kalotrack-v8';
+const CACHE = 'kalotrack-v9';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/css/app.css',
-  '/css/components.css',
-  '/js/app.js',
-  '/js/db.js',
-  '/js/api.js',
-  '/js/views/dashboard.js',
-  '/js/views/foodlog.js',
-  '/js/views/recipes.js',
-  '/js/views/shopping.js',
-  '/js/views/weekplan.js',
-  '/js/views/body.js',
-  '/js/views/settings.js',
+  './',
+  './index.html',
+  './manifest.json',
+  './css/app.css',
+  './css/components.css',
+  './js/app.js',
+  './js/db.js',
+  './js/api.js',
+  './js/views/dashboard.js',
+  './js/views/foodlog.js',
+  './js/views/recipes.js',
+  './js/views/shopping.js',
+  './js/views/weekplan.js',
+  './js/views/body.js',
+  './js/views/settings.js',
 ];
 
 self.addEventListener('install', e => {

@@ -120,7 +120,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await initDB();
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
   document.querySelectorAll('.nav-btn').forEach(btn => {

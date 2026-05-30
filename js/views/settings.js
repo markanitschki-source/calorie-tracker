@@ -179,11 +179,23 @@ export async function renderSettings(container) {
     <!-- PWA Install -->
     <div id="install-banner" class="section" style="display:none;padding-top:0">
       <div class="card" style="padding:16px;background:var(--accent-dim);border-color:var(--accent)">
-        <div style="font-size:15px;font-weight:700;margin-bottom:6px">App installieren</div>
+        <div style="font-size:15px;font-weight:700;margin-bottom:6px">📲 App installieren</div>
         <div style="font-size:13px;color:var(--text-2);margin-bottom:12px">
           KaloTrack als App auf dem Homescreen speichern.
         </div>
-        <button class="btn btn-primary btn-sm" id="btn-install">📲 Jetzt installieren</button>
+        <button class="btn btn-primary btn-sm" id="btn-install">Jetzt installieren</button>
+      </div>
+    </div>
+
+    <!-- iOS Install Hint (immer sichtbar auf iOS) -->
+    <div id="ios-install-hint" class="section" style="display:none;padding-top:0">
+      <div class="card" style="padding:16px;background:var(--accent-dim);border-color:var(--accent)">
+        <div style="font-size:15px;font-weight:700;margin-bottom:8px">📲 App auf dem Homescreen</div>
+        <div style="font-size:13px;color:var(--text-2);line-height:1.7">
+          1. Tippe unten auf das <strong>Teilen-Symbol</strong> (□↑)<br>
+          2. Wähle <strong>„Zum Home-Bildschirm"</strong><br>
+          3. Tippe oben rechts auf <strong>„Hinzufügen"</strong>
+        </div>
       </div>
     </div>
   `;
@@ -279,7 +291,14 @@ export async function renderSettings(container) {
     refresh();
   });
 
-  // PWA install
+  // iOS: kein beforeinstallprompt — manuellen Hinweis zeigen
+  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isInStandaloneMode = ('standalone' in navigator) && navigator.standalone;
+  if (isIos && !isInStandaloneMode) {
+    container.querySelector('#ios-install-hint').style.display = '';
+  }
+
+  // Android / Chrome: automatischer Install-Button
   if (window._deferredInstallPrompt) {
     container.querySelector('#install-banner').style.display = '';
     container.querySelector('#btn-install')?.addEventListener('click', async () => {
