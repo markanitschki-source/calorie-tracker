@@ -28,14 +28,15 @@ export async function renderRecipes(container) {
   const favorites = saved.filter(m => m.favorite);
   const others    = saved.filter(m => !m.favorite);
 
-  const phase          = PHASES.find(p => p.id === (settings.phase ?? 'ausgewogen')) ?? PHASES[0];
-  const yesterdayKcal  = sumLog(yesterdayLog).kcal;
+  const phase           = PHASES.find(p => p.id === (settings.phase ?? 'ausgewogen')) ?? PHASES[0];
+  const effectiveGoal   = settings.dailyGoal + phase.offset;
+  const yesterdayKcal   = sumLog(yesterdayLog).kcal;
   const yesterdaySurplus = yesterdayKcal > 50
-    ? Math.max(0, yesterdayKcal - settings.dailyGoal)
+    ? Math.max(0, yesterdayKcal - effectiveGoal)
     : 0;
   const recommendedKcal = yesterdaySurplus > 50
-    ? Math.max(800, settings.dailyGoal - Math.min(Math.round(yesterdaySurplus / 2), 300))
-    : settings.dailyGoal;
+    ? Math.max(800, effectiveGoal - Math.min(Math.round(yesterdaySurplus / 2), 300))
+    : effectiveGoal;
 
   container.innerHTML = `
     <header class="view-header">

@@ -51,12 +51,13 @@ export async function renderDashboard(container) {
     getTodayLog(), getSettings(), getWeekLogs(), getLogForDate(yesterday()),
   ]);
 
-  const phase       = PHASES.find(p => p.id === (settings.phase ?? 'ausgewogen')) ?? PHASES[0];
-  const totals      = sumLog(log);
-  const byMeal      = entriesByMeal(log);
-  const mealKcal    = sumByMeal(log);
-  const totalBudget = settings.dailyGoal + (settings.activityKcal ?? 0);
-  const remaining   = totalBudget - totals.kcal;
+  const phase         = PHASES.find(p => p.id === (settings.phase ?? 'ausgewogen')) ?? PHASES[0];
+  const totals        = sumLog(log);
+  const byMeal        = entriesByMeal(log);
+  const mealKcal      = sumByMeal(log);
+  const effectiveGoal = settings.dailyGoal + phase.offset;
+  const totalBudget   = effectiveGoal + (settings.activityKcal ?? 0);
+  const remaining     = totalBudget - totals.kcal;
 
   // Phase-based macro goals
   const proteinGoal = Math.round(totalBudget * phase.macros.protein / 100 / 4);
@@ -66,7 +67,7 @@ export async function renderDashboard(container) {
   // Yesterday surplus for compensation banner
   const yesterdayTotals  = sumLog(yesterdayLog);
   const yesterdaySurplus = yesterdayTotals.kcal > 50
-    ? Math.max(0, yesterdayTotals.kcal - settings.dailyGoal)
+    ? Math.max(0, yesterdayTotals.kcal - effectiveGoal)
     : 0;
   const compensation = Math.min(Math.round(yesterdaySurplus / 2), 300);
 
@@ -120,7 +121,7 @@ export async function renderDashboard(container) {
         ${weekLogs.map((d, i) => {
           const isToday = i === 6;
           const hasData = d.sum.kcal > 50;
-          const isOver  = hasData && d.sum.kcal > settings.dailyGoal;
+          const isOver  = hasData && d.sum.kcal > effectiveGoal;
           let cls = '';
           if (isToday)  cls = 'today';
           else if (isOver) cls = 'over-day';
@@ -214,6 +215,7 @@ export async function renderDashboard(container) {
             <div class="card-title">${totalBudget} kcal gesamt</div>
             <div class="card-subtitle">
               ${settings.dailyGoal} Basis
+              ${phase.offset !== 0 ? ` ${phase.offset > 0 ? '+' : ''}${phase.offset} ${phase.label}` : ''}
               ${settings.activityKcal ? ` + ${settings.activityKcal} Aktivität` : ''}
               ${compensation > 0 ? ` · −${compensation} Ausgleich empfohlen` : ''}
             </div>
