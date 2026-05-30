@@ -233,7 +233,6 @@ export async function renderDashboard(container) {
         const pct      = target ? Math.min(consumed / target * 100, 100) : 0;
         const over     = target && consumed > target;
 
-        if (m.pct === 0 && entries.length === 0) return '';
 
         return `
         <div class="meal-section card" style="margin-bottom:10px">

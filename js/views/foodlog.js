@@ -80,6 +80,17 @@ export async function renderFoodLog(container) {
         </div>
       </details>
     </div>` : ''}
+
+    <div class="section" style="padding-top:0">
+      <details>
+        <summary style="cursor:pointer;padding:8px 0;font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.8px;list-style:none">
+          ▸ 🥤 Getränke (Schnellzugriff)
+        </summary>
+        <div class="card" id="quick-drinks" style="margin-top:8px">
+          ${quickDrinkItems.map(item => quickRow(item)).join('')}
+        </div>
+      </details>
+    </div>
   `;
 
   let selectedMeal = preselected;
@@ -128,6 +139,11 @@ export async function renderFoodLog(container) {
   });
 
   container.querySelector('#quick-basics')?.addEventListener('click', e => {
+    const row = e.target.closest('[data-quick]');
+    if (row) openAmountModal(JSON.parse(row.dataset.quick), () => selectedMeal);
+  });
+
+  container.querySelector('#quick-drinks')?.addEventListener('click', e => {
     const row = e.target.closest('[data-quick]');
     if (row) openAmountModal(JSON.parse(row.dataset.quick), () => selectedMeal);
   });
@@ -350,6 +366,19 @@ const quickAddItems = [
   { name: 'Naturjoghurt',       portion: '3,5% Fett',           kcal_100g: 61,  protein_100g: 4,   carbs_100g: 4,  fat_100g: 4   },
   { name: 'Lachs',              portion: 'Filet',               kcal_100g: 208, protein_100g: 20,  carbs_100g: 0,  fat_100g: 13  },
   { name: 'Reis (gekocht)',     portion: 'Basmati / Langkorn',  kcal_100g: 130, protein_100g: 3,   carbs_100g: 28, fat_100g: 0.3 },
-  { name: 'Wasser',             portion: 'Kalorienfrei',        kcal_100g: 0,   protein_100g: 0,   carbs_100g: 0,  fat_100g: 0   },
-  { name: 'Orangensaft',        portion: 'Frisch gepresst',     kcal_100g: 45,  protein_100g: 0.7, carbs_100g: 10, fat_100g: 0.2 },
+];
+
+const quickDrinkItems = [
+  { name: 'Kaffee schwarz',     portion: '1 Tasse ≈ 200ml',     kcal_100g: 2,   protein_100g: 0.1, carbs_100g: 0,  fat_100g: 0   },
+  { name: 'Kaffee mit Milch',   portion: 'Cappuccino ca. 150ml', kcal_100g: 40,  protein_100g: 2,   carbs_100g: 4,  fat_100g: 1.5 },
+  { name: 'Tee (ungesüßt)',     portion: '1 Tasse ≈ 200ml',     kcal_100g: 1,   protein_100g: 0,   carbs_100g: 0,  fat_100g: 0   },
+  { name: 'Orangensaft',        portion: 'Frisch gepresst',      kcal_100g: 45,  protein_100g: 0.7, carbs_100g: 10, fat_100g: 0.2 },
+  { name: 'Apfelsaft',          portion: '100% Saft',            kcal_100g: 46,  protein_100g: 0.1, carbs_100g: 11, fat_100g: 0.1 },
+  { name: 'Vollmilch',          portion: '3,5% Fett',            kcal_100g: 64,  protein_100g: 3.3, carbs_100g: 4.7,fat_100g: 3.5 },
+  { name: 'Cola',               portion: 'z.B. Coca-Cola',       kcal_100g: 42,  protein_100g: 0,   carbs_100g: 10.6,fat_100g: 0  },
+  { name: 'Cola Zero / Light',  portion: 'Zuckerfrei',           kcal_100g: 0,   protein_100g: 0,   carbs_100g: 0,  fat_100g: 0   },
+  { name: 'Bier (5%)',          portion: '0,5L = 500ml',         kcal_100g: 43,  protein_100g: 0.5, carbs_100g: 3.6,fat_100g: 0   },
+  { name: 'Rotwein',            portion: '1 Glas ≈ 150ml',       kcal_100g: 85,  protein_100g: 0.1, carbs_100g: 2.6,fat_100g: 0   },
+  { name: 'Weißwein',           portion: '1 Glas ≈ 150ml',       kcal_100g: 82,  protein_100g: 0.1, carbs_100g: 2.6,fat_100g: 0   },
+  { name: 'Energydrink',        portion: 'z.B. Red Bull 250ml',  kcal_100g: 45,  protein_100g: 0,   carbs_100g: 11, fat_100g: 0   },
 ];
