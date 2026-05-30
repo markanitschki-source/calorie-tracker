@@ -56,7 +56,7 @@ export const PHASES = [
 
 // ── Settings ──────────────────────────────────────────────
 export async function getSettings() {
-  const defaults = { dailyGoal: 2000, apiKey: '', activityKcal: 0, phase: 'ausgewogen' };
+  const defaults = { dailyGoal: 1000, apiKey: '', activityKcal: 0, phase: 'ausgewogen' };
   return { ...defaults, ...(await get('settings')) };
 }
 
@@ -217,4 +217,22 @@ export async function addWeightEntry(weightKg) {
 
 export async function getWeightHistory() {
   return (await get('weight_history')) ?? [];
+}
+
+// ── Week Plan ─────────────────────────────────────────────
+export async function getWeekPlan(weekStart) {
+  return (await get(`weekplan_${weekStart}`)) ?? null;
+}
+
+export async function saveWeekPlan(weekStart, plan) {
+  await set(`weekplan_${weekStart}`, plan);
+}
+
+// ── Disliked Ingredients ──────────────────────────────────
+export async function getDislikedIngredients() {
+  return (await get('disliked_ingredients')) ?? [];
+}
+
+export async function saveDislikedIngredients(list) {
+  await set('disliked_ingredients', list);
 }

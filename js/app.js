@@ -2,6 +2,7 @@ import { renderDashboard }  from './views/dashboard.js';
 import { renderFoodLog }    from './views/foodlog.js';
 import { renderRecipes }    from './views/recipes.js';
 import { renderShopping }   from './views/shopping.js';
+import { renderWeekplan }   from './views/weekplan.js';
 import { renderBody }       from './views/body.js';
 import { renderSettings }   from './views/settings.js';
 
@@ -10,6 +11,7 @@ const views = {
   log:       renderFoodLog,
   recipes:   renderRecipes,
   shopping:  renderShopping,
+  weekplan:  renderWeekplan,
   body:      renderBody,
   settings:  renderSettings,
 };

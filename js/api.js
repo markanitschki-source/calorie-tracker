@@ -80,6 +80,53 @@ ${meals > 1 ? `Format für mehrere Rezepte: Array von Rezepten: [{...}, {...}]` 
   return Array.isArray(parsed) ? parsed : [parsed];
 }
 
+// ── Claude API — Weekly Dinner Plan ──────────────────────
+export async function generateWeeklyMeals(apiKey, { phase = null, disliked = [], dinnerKcal = 1100 }) {
+  const dislikedStr = disliked.length
+    ? `\nVERBOTEN (mag ich nicht): ${disliked.join(', ')}` : '';
+  const phaseStr = phase
+    ? `\nErnährungsphase: ${phase.label} — ${phase.desc}. Makroziele: Protein ${phase.macros.protein}%, Kohlenhydrate ${phase.macros.carbs}%, Fett ${phase.macros.fat}%.` : '';
+
+  const prompt = `Erstelle 7 verschiedene Abendessen-Rezepte für einen Wochenplan.
+
+Kontext: Die Person trinkt morgens einen Protein-Shake (300 kcal, ~35g Protein) und mittags einen Clear-Protein-Shake (300 kcal, ~40g Protein). Das Abendessen ist die einzige richtige Mahlzeit.${phaseStr}${dislikedStr}
+
+Anforderungen:
+- Jedes Rezept: ca. ${dinnerKcal} Kalorien
+- Mind. 60g Protein pro Rezept
+- 7 VÖLLIG verschiedene Rezepte (verschiedene Länderküchen, Proteinquellen wie Rind/Huhn/Fisch/Meeresfrüchte/Schwein/Hülsenfrüchte, verschiedene Garmethoden)
+
+Antworte NUR mit validem JSON ohne Markdown:
+{"recipes":[{"name":"...","kcal":${dinnerKcal},"protein":70,"carbs":80,"fat":40,"zutaten":[{"name":"...","menge":"200","einheit":"g","kcal":300}],"anleitung":"..."}]}`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 6000,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message ?? `API-Fehler ${res.status}`);
+  }
+
+  const data = await res.json();
+  const text = data.content[0].text.trim();
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Kein gültiges JSON erhalten');
+  const parsed = JSON.parse(jsonMatch[0]);
+  return parsed.recipes ?? [];
+}
+
 // ── Claude API — Meal Plan ────────────────────────────────
 export async function generateMealPlan(apiKey, { dailyKcal, days, preference }) {
   const prompt = `Erstelle einen Essensplan für ${days} Tage mit je ca. ${dailyKcal} Kalorien pro Tag (${preference}).

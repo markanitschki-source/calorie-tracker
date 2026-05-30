@@ -1,4 +1,4 @@
-const CACHE = 'kalotrack-v4';
+const CACHE = 'kalotrack-v5';
 const ASSETS = [
   '/',
   '/index.html',
@@ -12,6 +12,7 @@ const ASSETS = [
   '/js/views/foodlog.js',
   '/js/views/recipes.js',
   '/js/views/shopping.js',
+  '/js/views/weekplan.js',
   '/js/views/body.js',
   '/js/views/settings.js',
 ];
