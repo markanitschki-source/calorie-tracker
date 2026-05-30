@@ -108,27 +108,50 @@ export async function renderFoodLog(container) {
   const btnScan   = container.querySelector('#btn-scan');
   const resultsEl = container.querySelector('#search-results');
 
+  const showLocalMatches = q => {
+    const ql = q.toLowerCase();
+    const matches = localFoodDB.filter(f => f.name.toLowerCase().includes(ql));
+    if (!matches.length) return false;
+    renderResults(resultsEl, matches, () => selectedMeal);
+    return true;
+  };
+
   const doSearch = async () => {
     const q = input.value.trim();
     if (q.length < 2) return;
-    resultsEl.innerHTML = `<div class="loading-state"><div class="spinner"></div><span>Suche in Open Food Facts…</span></div>`;
+
+    // Sofortergebnisse aus lokaler DB
+    const hasLocal = showLocalMatches(q);
+    if (!hasLocal) {
+      resultsEl.innerHTML = `<div class="loading-state"><div class="spinner"></div><span>Suche…</span></div>`;
+    }
+
     try {
       const results = await searchFood(q);
-      if (!results.length) {
+      // Nur anzeigen wenn Query noch aktuell
+      if (input.value.trim() !== q) return;
+      if (!results.length && !hasLocal) {
         resultsEl.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><p>Keine Ergebnisse für „${escHtml(q)}".<br>Andere Schreibweise versuchen.</p></div>`;
         return;
       }
-      renderResults(resultsEl, results, () => selectedMeal);
-    } catch (err) {
-      resultsEl.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Fehler: ${escHtml(err.message)}</p></div>`;
+      if (results.length) renderResults(resultsEl, results, () => selectedMeal);
+    } catch {
+      // Lokale Ergebnisse bleiben sichtbar — kein Fehler anzeigen
+      if (!hasLocal) {
+        resultsEl.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Keine Verbindung — lokale Ergebnisse werden gezeigt.</p></div>`;
+      }
     }
   };
 
   btnSearch.addEventListener('click', doSearch);
   input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
   input.addEventListener('input', () => {
+    const q = input.value.trim();
     clearTimeout(debounceTimer);
-    if (input.value.trim().length >= 3) debounceTimer = setTimeout(doSearch, 600);
+    if (q.length >= 2) {
+      showLocalMatches(q);
+      debounceTimer = setTimeout(doSearch, 500);
+    }
   });
 
   btnScan.addEventListener('click', () => openScannerModal(resultsEl, () => selectedMeal));
@@ -358,14 +381,55 @@ function escHtml(s) {
 }
 
 const quickAddItems = [
-  { name: 'Haferflocken',       portion: 'Porridge-Grundlage',  kcal_100g: 370, protein_100g: 13,  carbs_100g: 58, fat_100g: 7   },
-  { name: 'Ei (Hühnerei)',      portion: '1 Ei ≈ 60g',          kcal_100g: 155, protein_100g: 13,  carbs_100g: 1,  fat_100g: 11  },
-  { name: 'Hähnchenbrustfilet', portion: 'Gebraten / gekocht',  kcal_100g: 165, protein_100g: 31,  carbs_100g: 0,  fat_100g: 4   },
-  { name: 'Vollkornbrot',       portion: '1 Scheibe ≈ 50g',     kcal_100g: 240, protein_100g: 8,   carbs_100g: 42, fat_100g: 3   },
-  { name: 'Apfel',              portion: 'Mittelgroß ≈ 150g',   kcal_100g: 52,  protein_100g: 0.3, carbs_100g: 14, fat_100g: 0.2 },
-  { name: 'Naturjoghurt',       portion: '3,5% Fett',           kcal_100g: 61,  protein_100g: 4,   carbs_100g: 4,  fat_100g: 4   },
-  { name: 'Lachs',              portion: 'Filet',               kcal_100g: 208, protein_100g: 20,  carbs_100g: 0,  fat_100g: 13  },
-  { name: 'Reis (gekocht)',     portion: 'Basmati / Langkorn',  kcal_100g: 130, protein_100g: 3,   carbs_100g: 28, fat_100g: 0.3 },
+  { name: 'Haferflocken',       portion: '1 Portion ≈ 60g',     kcal_100g: 370, protein_100g: 13,  carbs_100g: 58, fat_100g: 7,   serving_quantity: 60  },
+  { name: 'Ei (Hühnerei)',      portion: '1 Ei ≈ 60g',          kcal_100g: 155, protein_100g: 13,  carbs_100g: 1,  fat_100g: 11,  serving_quantity: 60  },
+  { name: 'Hähnchenbrustfilet', portion: 'Gebraten / gekocht',  kcal_100g: 165, protein_100g: 31,  carbs_100g: 0,  fat_100g: 4,   serving_quantity: 150 },
+  { name: 'Vollkornbrot',       portion: '1 Scheibe ≈ 50g',     kcal_100g: 240, protein_100g: 8,   carbs_100g: 42, fat_100g: 3,   serving_quantity: 50  },
+  { name: 'Apfel',              portion: 'Mittelgroß ≈ 150g',   kcal_100g: 52,  protein_100g: 0.3, carbs_100g: 14, fat_100g: 0.2, serving_quantity: 150 },
+  { name: 'Naturjoghurt 3,5%',  portion: '1 Glas ≈ 200g',      kcal_100g: 61,  protein_100g: 4,   carbs_100g: 4,  fat_100g: 4,   serving_quantity: 200 },
+  { name: 'Lachs',              portion: 'Filet ≈ 150g',        kcal_100g: 208, protein_100g: 20,  carbs_100g: 0,  fat_100g: 13,  serving_quantity: 150 },
+  { name: 'Reis (gekocht)',     portion: 'Basmati / Langkorn',  kcal_100g: 130, protein_100g: 3,   carbs_100g: 28, fat_100g: 0.3, serving_quantity: 200 },
+];
+
+// Lokale Datenbank häufiger dt. Lebensmittel — Sofortergebnisse ohne API
+const localFoodDB = [
+  { name: 'Haferflocken',         kcal_100g: 370, protein_100g: 13.0, carbs_100g: 58, fat_100g: 7.0,  serving_quantity: 60  },
+  { name: 'Müsli (ohne Zucker)',  kcal_100g: 370, protein_100g: 9.5,  carbs_100g: 59, fat_100g: 8.0,  serving_quantity: 60  },
+  { name: 'Vollkornbrot',         kcal_100g: 240, protein_100g: 8.0,  carbs_100g: 42, fat_100g: 3.0,  serving_quantity: 50  },
+  { name: 'Toastbrot',            kcal_100g: 265, protein_100g: 8.0,  carbs_100g: 50, fat_100g: 3.5,  serving_quantity: 25  },
+  { name: 'Brötchen',             kcal_100g: 290, protein_100g: 9.0,  carbs_100g: 55, fat_100g: 2.5,  serving_quantity: 50  },
+  { name: 'Butter',               kcal_100g: 740, protein_100g: 0.5,  carbs_100g: 0,  fat_100g: 82.0, serving_quantity: 10  },
+  { name: 'Marmelade',            kcal_100g: 250, protein_100g: 0.5,  carbs_100g: 60, fat_100g: 0.1,  serving_quantity: 20  },
+  { name: 'Honig',                kcal_100g: 305, protein_100g: 0.3,  carbs_100g: 80, fat_100g: 0.0,  serving_quantity: 15  },
+  { name: 'Ei (Hühnerei)',        kcal_100g: 155, protein_100g: 13.0, carbs_100g: 1,  fat_100g: 11.0, serving_quantity: 60  },
+  { name: 'Naturjoghurt 3,5%',   kcal_100g: 61,  protein_100g: 4.0,  carbs_100g: 4,  fat_100g: 4.0,  serving_quantity: 200 },
+  { name: 'Skyr',                 kcal_100g: 63,  protein_100g: 11.0, carbs_100g: 4,  fat_100g: 0.2,  serving_quantity: 200 },
+  { name: 'Magerquark',           kcal_100g: 68,  protein_100g: 13.0, carbs_100g: 3,  fat_100g: 0.2,  serving_quantity: 150 },
+  { name: 'Hähnchenbrustfilet',  kcal_100g: 165, protein_100g: 31.0, carbs_100g: 0,  fat_100g: 4.0,  serving_quantity: 150 },
+  { name: 'Hackfleisch (gemischt)', kcal_100g: 240, protein_100g: 18.0, carbs_100g: 0, fat_100g: 19.0, serving_quantity: 150 },
+  { name: 'Lachs',                kcal_100g: 208, protein_100g: 20.0, carbs_100g: 0,  fat_100g: 13.0, serving_quantity: 150 },
+  { name: 'Thunfisch (Dose)',     kcal_100g: 116, protein_100g: 26.0, carbs_100g: 0,  fat_100g: 1.0,  serving_quantity: 80  },
+  { name: 'Nudeln (ungekocht)',   kcal_100g: 349, protein_100g: 13.0, carbs_100g: 70, fat_100g: 2.0,  serving_quantity: 80  },
+  { name: 'Nudeln (gekocht)',     kcal_100g: 130, protein_100g: 5.0,  carbs_100g: 25, fat_100g: 1.0,  serving_quantity: 200 },
+  { name: 'Reis (ungekocht)',     kcal_100g: 350, protein_100g: 7.0,  carbs_100g: 77, fat_100g: 1.0,  serving_quantity: 75  },
+  { name: 'Reis (gekocht)',       kcal_100g: 130, protein_100g: 3.0,  carbs_100g: 28, fat_100g: 0.3,  serving_quantity: 200 },
+  { name: 'Kartoffeln (gekocht)', kcal_100g: 80,  protein_100g: 2.0,  carbs_100g: 17, fat_100g: 0.1,  serving_quantity: 200 },
+  { name: 'Süßkartoffel',        kcal_100g: 86,  protein_100g: 1.6,  carbs_100g: 20, fat_100g: 0.1,  serving_quantity: 200 },
+  { name: 'Banane',               kcal_100g: 89,  protein_100g: 1.1,  carbs_100g: 23, fat_100g: 0.3,  serving_quantity: 120 },
+  { name: 'Apfel',                kcal_100g: 52,  protein_100g: 0.3,  carbs_100g: 14, fat_100g: 0.2,  serving_quantity: 150 },
+  { name: 'Orange',               kcal_100g: 47,  protein_100g: 0.9,  carbs_100g: 11, fat_100g: 0.1,  serving_quantity: 150 },
+  { name: 'Erdbeeren',            kcal_100g: 33,  protein_100g: 0.7,  carbs_100g: 8,  fat_100g: 0.3,  serving_quantity: 150 },
+  { name: 'Mandeln',              kcal_100g: 579, protein_100g: 21.0, carbs_100g: 10, fat_100g: 50.0, serving_quantity: 30  },
+  { name: 'Walnüsse',             kcal_100g: 654, protein_100g: 15.0, carbs_100g: 14, fat_100g: 65.0, serving_quantity: 30  },
+  { name: 'Gouda',                kcal_100g: 356, protein_100g: 25.0, carbs_100g: 0,  fat_100g: 28.0, serving_quantity: 30  },
+  { name: 'Brokkoli',             kcal_100g: 34,  protein_100g: 3.0,  carbs_100g: 5,  fat_100g: 0.4,  serving_quantity: 200 },
+  { name: 'Spinat',               kcal_100g: 17,  protein_100g: 2.5,  carbs_100g: 1,  fat_100g: 0.4,  serving_quantity: 200 },
+  { name: 'Tomaten',              kcal_100g: 18,  protein_100g: 1.0,  carbs_100g: 4,  fat_100g: 0.2,  serving_quantity: 150 },
+  { name: 'Paprika (rot)',        kcal_100g: 31,  protein_100g: 1.0,  carbs_100g: 6,  fat_100g: 0.3,  serving_quantity: 150 },
+  { name: 'Karotten',             kcal_100g: 41,  protein_100g: 0.9,  carbs_100g: 10, fat_100g: 0.2,  serving_quantity: 150 },
+  { name: 'Avocado',              kcal_100g: 160, protein_100g: 2.0,  carbs_100g: 2,  fat_100g: 15.0, serving_quantity: 100 },
+  { name: 'Olivenöl',             kcal_100g: 884, protein_100g: 0.0,  carbs_100g: 0,  fat_100g: 100,  serving_quantity: 10  },
+  { name: 'Proteiriegel',         kcal_100g: 350, protein_100g: 30.0, carbs_100g: 35, fat_100g: 8.0,  serving_quantity: 60  },
 ];
 
 const quickDrinkItems = [

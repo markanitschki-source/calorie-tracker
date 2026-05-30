@@ -3,11 +3,13 @@ export async function searchFood(query) {
   const fields = 'product_name,nutriments,brands,quantity,serving_size,serving_quantity';
   const base   = 'https://world.openfoodfacts.org/cgi/search.pl';
   const q      = encodeURIComponent(query);
+  const params = `json=1&page_size=20&fields=${fields}&sort_by=popularity_key&lc=de`;
 
-  const [nameData, brandData] = await Promise.all([
-    fetch(`${base}?search_terms=${q}&json=1&page_size=20&fields=${fields}`)
+  // Parallel: German products first, then global for broader coverage
+  const [deData, worldData] = await Promise.all([
+    fetch(`${base}?search_terms=${q}&countries_tags=en:germany&${params}`)
       .then(r => r.json()).catch(() => ({ products: [] })),
-    fetch(`${base}?tagtype_0=brands&tag_contains_0=contains&tag_0=${q}&json=1&page_size=20&fields=${fields}`)
+    fetch(`${base}?search_terms=${q}&${params}`)
       .then(r => r.json()).catch(() => ({ products: [] })),
   ]);
 
@@ -26,9 +28,10 @@ export async function searchFood(query) {
 
   const seen   = new Set();
   const result = [];
+  // German products first, then world results for fallback
   for (const p of [
-    ...(brandData.products ?? []).filter(isValid).map(mapProduct),
-    ...(nameData.products  ?? []).filter(isValid).map(mapProduct),
+    ...(deData.products    ?? []).filter(isValid).map(mapProduct),
+    ...(worldData.products ?? []).filter(isValid).map(mapProduct),
   ]) {
     const key = `${p.name}|${p.brand}`.toLowerCase();
     if (!seen.has(key)) { seen.add(key); result.push(p); }

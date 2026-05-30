@@ -620,6 +620,7 @@
 
 .chat-input-row .btn {
   flex-shrink: 0;
+  width: auto;
   height: 42px;
   padding: 0 18px;
   border-radius: 22px;
