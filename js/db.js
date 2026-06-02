@@ -84,7 +84,7 @@ export const PHASES = [
 
 // ── Settings ──────────────────────────────────────────────
 export async function getSettings() {
-  const defaults = { dailyGoal: 2000, apiKey: '', activityKcal: 0, phase: 'ausgewogen', waterGoalMl: 2500, routine: [] };
+  const defaults = { dailyGoal: 2000, apiKey: '', activityKcal: 0, phase: 'ausgewogen', waterGoalMl: 2500, routine: [], defizit: null };
   const saved    = await get(pk('settings'));
   return { ...defaults, ...saved };
 }

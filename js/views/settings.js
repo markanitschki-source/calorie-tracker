@@ -7,8 +7,9 @@ let selectedPhase = 'ausgewogen';
 export async function renderSettings(container) {
   const [settings, profiles] = await Promise.all([getSettings(), getProfiles()]);
   selectedPhase = settings.phase ?? 'ausgewogen';
-  const total   = (settings.dailyGoal ?? 2000) + (settings.activityKcal ?? 0);
   const phase   = PHASES.find(p => p.id === selectedPhase) ?? PHASES[0];
+  const activeOffset = settings.defizit != null ? settings.defizit : phase.offset;
+  const total   = (settings.dailyGoal ?? 2000) + (settings.activityKcal ?? 0) + activeOffset;
   const routine = settings.routine ?? [];
 
   container.innerHTML = `
@@ -71,6 +72,12 @@ export async function renderSettings(container) {
           <input id="activity-input" class="input" type="number" min="0" max="5000"
             value="${settings.activityKcal ?? 0}" inputmode="numeric" placeholder="0">
           <div class="settings-hint">Zusätzlich verbrannte Kalorien durch Sport. Erhöht dein Tagesbudget.</div>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="defizit-input">Persönliches Defizit/Überschuss (kcal)</label>
+          <input id="defizit-input" class="input" type="number" min="-2000" max="2000"
+            value="${settings.defizit ?? ''}" inputmode="numeric" placeholder="Phase-Standard: ${activeOffset}">
+          <div class="settings-hint">Negativ = Defizit (abnehmen), Positiv = Überschuss (aufbauen). Leer = Phase-Wert wird verwendet.</div>
         </div>
         <div class="settings-row" style="background:var(--accent-dim);border-radius:var(--radius-sm)">
           <div class="settings-label">Gesamtbudget heute</div>
@@ -228,19 +235,28 @@ export async function renderSettings(container) {
   const totalDisplay  = container.querySelector('#total-display');
   const splitDisplay  = container.querySelector('#meal-split-display');
 
+  const defizitInput = container.querySelector('#defizit-input');
+
   const updateTotal = () => {
-    const t = (parseInt(goalInput.value) || 0) + (parseInt(activityInput.value) || 0);
+    const base    = (parseInt(goalInput.value)    || 0);
+    const act     = (parseInt(activityInput.value)|| 0);
+    const defRaw  = defizitInput.value.trim();
+    const def     = defRaw !== '' ? (parseInt(defRaw) || 0) : activeOffset;
+    const t       = base + act + def;
     totalDisplay.textContent = `${t} kcal`;
     splitDisplay.innerHTML   = mealSplitText(t);
   };
   goalInput.addEventListener('input', updateTotal);
   activityInput.addEventListener('input', updateTotal);
+  defizitInput.addEventListener('input', updateTotal);
 
   // Save settings
   container.querySelector('#btn-save').addEventListener('click', async () => {
     const goal      = parseInt(goalInput.value);
     const activity  = parseInt(activityInput.value) || 0;
     const waterGoal = parseInt(container.querySelector('#water-goal-input').value) || 2500;
+    const defRaw    = defizitInput.value.trim();
+    const defizit   = defRaw !== '' ? (parseInt(defRaw) || 0) : null;
     if (!goal || goal < 100 || goal > 20000) { showToast('Ungültiges Kalorienziel'); return; }
     await saveSettings({
       ...settings,
@@ -249,6 +265,7 @@ export async function renderSettings(container) {
       waterGoalMl:  waterGoal,
       apiKey:       container.querySelector('#api-key-input').value.trim(),
       phase:        selectedPhase,
+      defizit,
     });
     showToast('Einstellungen gespeichert ✓');
     refresh();

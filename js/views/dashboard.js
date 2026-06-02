@@ -89,7 +89,8 @@ export async function renderDashboard(container) {
   const totals         = sumLog(log);
   const byMeal         = entriesByMeal(log);
   const mealKcal       = sumByMeal(log);
-  const effectiveGoal  = settings.dailyGoal + phase.offset;
+  const activeOffset   = settings.defizit != null ? settings.defizit : phase.offset;
+  const effectiveGoal  = settings.dailyGoal + activeOffset;
   const totalBudget    = effectiveGoal + (settings.activityKcal ?? 0);
   const remaining      = totalBudget - totals.kcal;
   const isOverToday    = totals.kcal > totalBudget;
@@ -284,7 +285,7 @@ export async function renderDashboard(container) {
             <div class="card-title">${totalBudget} kcal gesamt</div>
             <div class="card-subtitle">
               ${settings.dailyGoal} Basis
-              ${phase.offset !== 0 ? ` ${phase.offset > 0 ? '+' : ''}${phase.offset} ${phase.label}` : ''}
+              ${activeOffset !== 0 ? ` ${activeOffset > 0 ? '+' : ''}${activeOffset} ${settings.defizit != null ? 'Defizit' : phase.label}` : ''}
               ${settings.activityKcal ? ` + ${settings.activityKcal} Aktivität` : ''}
               ${compensation > 0 ? ` · −${compensation} Ausgleich empfohlen` : ''}
             </div>
