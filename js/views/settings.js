@@ -1,5 +1,6 @@
 import { getSettings, saveSettings, PHASES, getProfiles, saveProfiles } from '../db.js';
 import { showToast, refresh, openModal, closeModal } from '../app.js';
+import { searchLocal } from '../search.js';
 
 let selectedPhase = 'ausgewogen';
 
@@ -382,69 +383,91 @@ function openRoutineModal(onSave, prefill = null) {
   const v = f => prefill?.[f] ?? '';
 
   openModal(box => {
-    // Live-Vorschau: kcal / Protein / Fett für eingegebene Menge
     box.innerHTML += `
       <div class="modal-title">${isEdit ? 'Routine bearbeiten' : 'Routine-Eintrag hinzufügen'}</div>
       <div style="padding:0 20px 20px">
-        <div class="input-group">
-          <label class="input-label">Name</label>
-          <input id="r-name" class="input" type="text" placeholder="z.B. Protein-Shake"
-            value="${escHtml(v('name'))}">
+
+        <!-- Lebensmittel-Suche -->
+        <div class="input-group" style="position:relative">
+          <label class="input-label">Lebensmittel suchen</label>
+          <input id="r-search" class="input" type="text" placeholder="z.B. Haferflocken, Ei, Joghurt…"
+            autocomplete="off" autocorrect="off" spellcheck="false">
+          <div id="r-search-results" style="
+            display:none;position:absolute;left:0;right:0;top:100%;z-index:200;
+            background:var(--surface-2);border:1px solid var(--border);
+            border-radius:var(--radius-sm);box-shadow:0 4px 16px #0004;
+            max-height:200px;overflow-y:auto"></div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+
+        <div id="r-fields">
           <div class="input-group">
-            <label class="input-label">Menge (g / ml)</label>
-            <input id="r-amount" class="input" type="number"
-              value="${v('amount') || 100}" inputmode="numeric">
+            <label class="input-label">Name</label>
+            <input id="r-name" class="input" type="text" placeholder="z.B. Protein-Shake"
+              value="${escHtml(v('name'))}">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div class="input-group">
+              <label class="input-label">Menge (g / ml)</label>
+              <input id="r-amount" class="input" type="number"
+                value="${v('amount') || 100}" inputmode="numeric">
+            </div>
+            <div class="input-group">
+              <label class="input-label">kcal / 100g</label>
+              <input id="r-kcal" class="input" type="number"
+                value="${v('kcal_100g') || 0}" inputmode="numeric">
+            </div>
+            <div class="input-group">
+              <label class="input-label">Protein / 100g</label>
+              <input id="r-protein" class="input" type="number"
+                value="${v('protein_100g') || 0}" inputmode="decimal" step="0.1">
+            </div>
+            <div class="input-group">
+              <label class="input-label">Fett / 100g</label>
+              <input id="r-fat" class="input" type="number"
+                value="${v('fat_100g') || 0}" inputmode="decimal" step="0.1">
+            </div>
+            <div class="input-group">
+              <label class="input-label">Kohlenhydrate / 100g</label>
+              <input id="r-carbs" class="input" type="number"
+                value="${v('carbs_100g') || 0}" inputmode="decimal" step="0.1">
+            </div>
+          </div>
+          <div id="r-preview" style="
+            background:var(--accent-dim);border-radius:var(--radius-sm);
+            padding:10px 12px;margin:4px 0 12px;font-size:13px;color:var(--text-2)">
           </div>
           <div class="input-group">
-            <label class="input-label">kcal / 100g</label>
-            <input id="r-kcal" class="input" type="number"
-              value="${v('kcal_100g') || 0}" inputmode="numeric">
+            <label class="input-label">Mahlzeit</label>
+            <select id="r-meal" class="input">
+              <option value="fruehstueck"  ${v('meal_type')==='fruehstueck'  ?'selected':''}>Frühstück</option>
+              <option value="mittagessen"  ${v('meal_type')==='mittagessen'  ?'selected':''}>Mittagessen</option>
+              <option value="abendessen"   ${v('meal_type')==='abendessen'   ?'selected':''}>Abendessen</option>
+              <option value="snack"        ${v('meal_type')==='snack'        ?'selected':''}>Snack</option>
+              <option value="getraenke"    ${v('meal_type')==='getraenke'    ?'selected':''}>Getränk</option>
+            </select>
           </div>
-          <div class="input-group">
-            <label class="input-label">Protein / 100g</label>
-            <input id="r-protein" class="input" type="number"
-              value="${v('protein_100g') || 0}" inputmode="decimal" step="0.1">
-          </div>
-          <div class="input-group">
-            <label class="input-label">Fett / 100g</label>
-            <input id="r-fat" class="input" type="number"
-              value="${v('fat_100g') || 0}" inputmode="decimal" step="0.1">
-          </div>
-          <div class="input-group">
-            <label class="input-label">Kohlenhydrate / 100g</label>
-            <input id="r-carbs" class="input" type="number"
-              value="${v('carbs_100g') || 0}" inputmode="decimal" step="0.1">
-          </div>
+          <button class="btn btn-primary" id="btn-r-save" style="margin-top:4px">
+            ${isEdit ? 'Speichern' : 'Hinzufügen'}
+          </button>
         </div>
-        <div id="r-preview" style="
-          background:var(--accent-dim);border-radius:var(--radius-sm);
-          padding:10px 12px;margin:4px 0 12px;font-size:13px;color:var(--text-2)">
-        </div>
-        <div class="input-group">
-          <label class="input-label">Mahlzeit</label>
-          <select id="r-meal" class="input">
-            <option value="fruehstueck"  ${v('meal_type')==='fruehstueck'  ?'selected':''}>Frühstück</option>
-            <option value="mittagessen"  ${v('meal_type')==='mittagessen'  ?'selected':''}>Mittagessen</option>
-            <option value="abendessen"   ${v('meal_type')==='abendessen'   ?'selected':''}>Abendessen</option>
-            <option value="snack"        ${v('meal_type')==='snack'        ?'selected':''}>Snack</option>
-            <option value="getraenke"    ${v('meal_type')==='getraenke'    ?'selected':''}>Getränk</option>
-          </select>
-        </div>
-        <button class="btn btn-primary" id="btn-r-save" style="margin-top:4px">
-          ${isEdit ? 'Speichern' : 'Hinzufügen'}
-        </button>
       </div>`;
 
+    const searchEl   = box.querySelector('#r-search');
+    const resultsEl  = box.querySelector('#r-search-results');
+    const nameEl     = box.querySelector('#r-name');
+    const amountEl   = box.querySelector('#r-amount');
+    const kcalEl     = box.querySelector('#r-kcal');
+    const proteinEl  = box.querySelector('#r-protein');
+    const fatEl      = box.querySelector('#r-fat');
+    const carbsEl    = box.querySelector('#r-carbs');
+
     const updatePreview = () => {
-      const g  = parseFloat(box.querySelector('#r-amount').value)  || 0;
-      const k  = parseFloat(box.querySelector('#r-kcal').value)    || 0;
-      const p  = parseFloat(box.querySelector('#r-protein').value) || 0;
-      const f  = parseFloat(box.querySelector('#r-fat').value)     || 0;
-      const c  = parseFloat(box.querySelector('#r-carbs').value)   || 0;
-      const pr = box.querySelector('#r-preview');
-      pr.innerHTML = `
+      const g = parseFloat(amountEl.value)  || 0;
+      const k = parseFloat(kcalEl.value)    || 0;
+      const p = parseFloat(proteinEl.value) || 0;
+      const f = parseFloat(fatEl.value)     || 0;
+      const c = parseFloat(carbsEl.value)   || 0;
+      box.querySelector('#r-preview').innerHTML = `
         <strong style="color:var(--accent)">${Math.round(k*g/100)} kcal</strong>
         &nbsp;·&nbsp; P: ${Math.round(p*g/100*10)/10}g
         &nbsp;·&nbsp; F: ${Math.round(f*g/100*10)/10}g
@@ -452,20 +475,61 @@ function openRoutineModal(onSave, prefill = null) {
         &nbsp;<span style="color:var(--text-3);font-size:11px">(für ${g}g)</span>`;
     };
 
-    ['#r-amount','#r-kcal','#r-protein','#r-fat','#r-carbs'].forEach(sel =>
-      box.querySelector(sel).addEventListener('input', updatePreview));
+    [amountEl, kcalEl, proteinEl, fatEl, carbsEl].forEach(el =>
+      el.addEventListener('input', updatePreview));
     updatePreview();
 
+    // Search logic
+    searchEl.addEventListener('input', () => {
+      const q = searchEl.value.trim();
+      if (q.length < 2) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
+      const hits = searchLocal(q).slice(0, 10);
+      if (!hits.length) { resultsEl.style.display = 'none'; return; }
+      resultsEl.innerHTML = hits.map((item, idx) => {
+        const label = item.brand ? `${item.name} <span style="opacity:.6;font-size:11px">${item.brand}</span>` : item.name;
+        return `<div data-r-hit="${idx}" style="
+          padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);
+          font-size:13px;display:flex;justify-content:space-between;align-items:center">
+          <span>${label}</span>
+          <span style="color:var(--accent);font-weight:700;white-space:nowrap;margin-left:8px">
+            ${item.kcal_100g} kcal/100g
+          </span>
+        </div>`;
+      }).join('');
+      resultsEl.style.display = '';
+
+      resultsEl.querySelectorAll('[data-r-hit]').forEach((row, idx) => {
+        row.addEventListener('mousedown', e => { e.preventDefault(); }); // don't blur search
+        row.addEventListener('click', () => {
+          const food = hits[idx];
+          nameEl.value    = food.name + (food.brand ? ` (${food.brand})` : '');
+          kcalEl.value    = food.kcal_100g    ?? 0;
+          proteinEl.value = food.protein_100g ?? 0;
+          fatEl.value     = food.fat_100g     ?? 0;
+          carbsEl.value   = food.carbs_100g   ?? 0;
+          amountEl.value  = food.serving_quantity ?? 100;
+          searchEl.value  = '';
+          resultsEl.style.display = 'none';
+          updatePreview();
+          amountEl.focus();
+        });
+      });
+    });
+
+    searchEl.addEventListener('blur', () => {
+      setTimeout(() => { resultsEl.style.display = 'none'; }, 150);
+    });
+
     box.querySelector('#btn-r-save').addEventListener('click', () => {
-      const name = box.querySelector('#r-name').value.trim();
+      const name = nameEl.value.trim();
       if (!name) { showToast('Bitte Name eingeben'); return; }
       const item = {
         name,
-        amount:       parseInt(box.querySelector('#r-amount').value)   || 100,
-        kcal_100g:    parseFloat(box.querySelector('#r-kcal').value)   || 0,
-        protein_100g: parseFloat(box.querySelector('#r-protein').value)|| 0,
-        carbs_100g:   parseFloat(box.querySelector('#r-carbs').value)  || 0,
-        fat_100g:     parseFloat(box.querySelector('#r-fat').value)    || 0,
+        amount:       parseInt(amountEl.value)   || 100,
+        kcal_100g:    parseFloat(kcalEl.value)   || 0,
+        protein_100g: parseFloat(proteinEl.value)|| 0,
+        carbs_100g:   parseFloat(carbsEl.value)  || 0,
+        fat_100g:     parseFloat(fatEl.value)    || 0,
         meal_type:    box.querySelector('#r-meal').value,
       };
       closeModal();
