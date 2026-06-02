@@ -3,6 +3,7 @@ import {
   getSettings, getLogForDate, removeFoodEntry, PHASES,
   getStreak, getWaterToday, addWater, setWaterToday,
   copyDayEntries, addFoodEntry, getProfiles, getActiveProfileId,
+  getFastingState, saveFastingState,
 } from '../db.js';
 import { navigate, showToast, refresh } from '../app.js';
 
@@ -78,9 +79,9 @@ function weekBarsHtml(weekLogs, effectiveGoal) {
 }
 
 export async function renderDashboard(container) {
-  const [log, settings, weekLogs, yesterdayLog, streak, waterMl, profiles] = await Promise.all([
+  const [log, settings, weekLogs, yesterdayLog, streak, waterMl, profiles, fastState] = await Promise.all([
     getTodayLog(), getSettings(), getWeekLogs(), getLogForDate(yesterday()),
-    getStreak(), getWaterToday(), getProfiles(),
+    getStreak(), getWaterToday(), getProfiles(), getFastingState(),
   ]);
 
   const pid            = getActiveProfileId();
@@ -97,7 +98,7 @@ export async function renderDashboard(container) {
   const waterGoal      = settings.waterGoalMl ?? 2500;
   const waterPct       = Math.min(waterMl / waterGoal * 100, 100).toFixed(0);
 
-  const proteinGoal = Math.round(totalBudget * phase.macros.protein / 100 / 4);
+  const proteinGoal = settings.proteinGoalG ?? Math.round(totalBudget * phase.macros.protein / 100 / 4);
   const carbsGoal   = Math.round(totalBudget * phase.macros.carbs   / 100 / 4);
   const fatGoal     = Math.round(totalBudget * phase.macros.fat     / 100 / 9);
 
@@ -223,6 +224,9 @@ export async function renderDashboard(container) {
         <button class="water-btn" id="btn-water-750">+750ml</button>
       </div>
     </div>
+
+    <!-- Fastentracker -->
+    ${settings.fastingType ? fastingWidget(settings.fastingType, fastState) : ''}
 
     <!-- Mahlzeiten-Übersicht -->
     <div class="section">
@@ -363,6 +367,19 @@ export async function renderDashboard(container) {
     showToast('💧 +750ml');
   });
 
+  // Fasting toggle
+  container.querySelector('#btn-fast-toggle')?.addEventListener('click', async () => {
+    const state = await getFastingState();
+    if (state.active) {
+      await saveFastingState({ ...state, active: false, startTime: null });
+      showToast('⏹ Fasten gestoppt');
+    } else {
+      await saveFastingState({ type: settings.fastingType, active: true, startTime: Date.now() });
+      showToast('▶ Fasten gestartet');
+    }
+    await renderDashboard(container);
+  });
+
   // Routine tracken
   container.querySelector('#btn-routine')?.addEventListener('click', async () => {
     const s       = await getSettings();
@@ -407,6 +424,49 @@ function entryRow(e) {
       </div>
       <div class="entry-kcal">${kcal} kcal</div>
       <button class="entry-del" data-id="${e.id}" title="Löschen">✕</button>
+    </div>`;
+}
+
+function fastingWidget(type, state) {
+  const GOAL_H = { '16:8': 16, '18:6': 18, '20:4': 20, 'omad': 23 };
+  const goalH  = GOAL_H[type] ?? 16;
+
+  let elapsed = 0;
+  if (state.active && state.startTime) {
+    elapsed = (Date.now() - state.startTime) / 3600000;
+  }
+  const pct  = Math.min(elapsed / goalH * 100, 100);
+  const h    = Math.floor(elapsed);
+  const m    = Math.floor((elapsed - h) * 60);
+  const done = state.active && elapsed >= goalH;
+  const remaining = Math.max(0, goalH - elapsed);
+  const remH = Math.floor(remaining);
+  const remM = Math.floor((remaining - remH) * 60);
+
+  return `
+    <div class="section" style="padding-top:0">
+      <div class="section-label">⏱ Fasten (${type.toUpperCase()})</div>
+      <div class="card" style="padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center${state.active ? ';margin-bottom:10px' : ''}">
+          <div>
+            ${state.active
+              ? `<div style="font-size:22px;font-weight:800;color:${done ? 'var(--green)' : 'var(--accent)'}">${h}h ${m}m</div>
+                 <div style="font-size:12px;color:var(--text-3)">
+                   ${done ? `✓ Ziel ${goalH}h erreicht!` : `${remH}h ${remM}m verbleibend von ${goalH}h`}
+                 </div>`
+              : `<div style="font-size:14px;font-weight:600">Nicht aktiv</div>
+                 <div style="font-size:12px;color:var(--text-3)">Start → Fastenzeit läuft</div>`}
+          </div>
+          <button id="btn-fast-toggle" class="btn ${state.active ? 'btn-danger' : 'btn-primary'} btn-sm"
+            style="flex-shrink:0;min-width:70px">
+            ${state.active ? '⏹ Stop' : '▶ Start'}
+          </button>
+        </div>
+        ${state.active ? `
+        <div style="height:6px;background:var(--surface-3);border-radius:99px;overflow:hidden">
+          <div style="height:100%;width:${pct.toFixed(1)}%;background:${done ? 'var(--green)' : 'var(--accent)'};border-radius:99px"></div>
+        </div>` : ''}
+      </div>
     </div>`;
 }
 

@@ -2,7 +2,7 @@ import { generateRecipe, askNutritionQuestion } from '../api.js';
 import {
   getSettings, saveMeal, getSavedMeals, deleteMeal, updateMeal,
   toggleFavorite, addShoppingItems, getLogForDate, sumLog, PHASES,
-  getActiveProfileId, getProfiles,
+  getActiveProfileId, getProfiles, getWeekPlan, saveWeekPlan,
 } from '../db.js';
 import { showToast, navigate, openModal, closeModal } from '../app.js';
 
@@ -37,13 +37,17 @@ export async function renderRecipes(container) {
   const others    = saved.filter(m => !m.favorite);
 
   const phase           = PHASES.find(p => p.id === (settings.phase ?? 'ausgewogen')) ?? PHASES[0];
-  const effectiveGoal   = settings.dailyGoal + phase.offset;
+  const activeOffset    = settings.defizit != null ? settings.defizit : phase.offset;
+  const routineKcal     = (settings.routine ?? []).reduce((s, r) => s + Math.round((r.kcal_100g ?? 0) * r.amount / 100), 0);
+  const totalBudget     = settings.dailyGoal + (settings.activityKcal ?? 0) + activeOffset;
+  const effectiveGoal   = totalBudget;
+  const availableKcal   = Math.max(400, totalBudget - routineKcal);
   const yesterdayKcal   = sumLog(yesterdayLog).kcal;
   const yesterdaySurplus = yesterdayKcal > 50
     ? Math.max(0, yesterdayKcal - effectiveGoal) : 0;
   const recommendedKcal = yesterdaySurplus > 50
-    ? Math.max(800, effectiveGoal - Math.min(Math.round(yesterdaySurplus / 2), 300))
-    : effectiveGoal;
+    ? Math.max(400, availableKcal - Math.min(Math.round(yesterdaySurplus / 2), 300))
+    : availableKcal;
 
   container.innerHTML = `
     <header class="view-header">
@@ -76,8 +80,13 @@ export async function renderRecipes(container) {
     <div class="section">
       <div class="section-label">Rezept generieren</div>
       <div class="gen-form">
-        <div style="margin-bottom:10px;padding:8px 12px;background:var(--accent-dim);border-radius:var(--radius-sm);font-size:12px;color:var(--text-2)">
+        <div style="margin-bottom:8px;padding:8px 12px;background:var(--accent-dim);border-radius:var(--radius-sm);font-size:12px;color:var(--text-2)">
           Phase: <strong style="color:var(--accent)">${phase.label}</strong> — ${phase.desc}
+        </div>
+        <div style="margin-bottom:10px;padding:8px 12px;background:var(--surface-3);border-radius:var(--radius-sm);font-size:12px;color:var(--text-2);display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
+          <span>Budget: <strong>${totalBudget}</strong> kcal</span>
+          ${routineKcal > 0 ? `<span>Routine: <strong>−${routineKcal}</strong> kcal</span>` : ''}
+          <span style="color:var(--accent);font-weight:700">Verfügbar: ${availableKcal} kcal</span>
         </div>
         <div class="gen-row">
           <div class="input-group">
@@ -281,6 +290,18 @@ async function runGenerate(container, apiKey, kcal, preference, meals, phase) {
       });
     });
 
+    resultEl.querySelectorAll('[data-assign-recipe]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const recipe = generatedRecipes[Number(btn.dataset.assignRecipe)];
+        openDatePickerModal(recipe, async (dateStr) => {
+          await assignRecipeToWeekplan(recipe, dateStr);
+          const d    = new Date(dateStr + 'T12:00:00');
+          const days = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+          showToast(`📅 ${days[d.getDay()]}, ${d.getDate()}.${d.getMonth()+1}. im Wochenplan`);
+        });
+      });
+    });
+
     resultEl.querySelectorAll('[data-shop-recipe]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const r = generatedRecipes[Number(btn.dataset.shopRecipe)];
@@ -400,7 +421,8 @@ function recipeCard(recipe, idx) {
         ${escHtml(anleitung).replace(/\n/g,'<br>')}
       </div>
       <div class="recipe-actions">
-        <button class="btn btn-success btn-sm" style="flex:1" data-shop-recipe="${idx}">🛒 Einkaufsliste</button>
+        <button class="btn btn-success btn-sm" style="flex:1" data-shop-recipe="${idx}">🛒 Einkauf</button>
+        <button class="btn btn-primary btn-sm" style="flex:1" data-assign-recipe="${idx}">📅 Wochenplan</button>
         <button class="btn btn-ghost btn-sm"   style="flex:1" data-save-recipe="${idx}">💾 Speichern</button>
       </div>
     </div>`;
@@ -438,4 +460,88 @@ function savedMealCard(meal) {
 
 function escHtml(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Wochenplan-Zuordnung ──────────────────────────────────
+function getMondayStr(dateStr) {
+  const d   = new Date(dateStr + 'T12:00:00');
+  const day = d.getDay();
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+  return d.toISOString().split('T')[0];
+}
+
+function addDaysStr(dateStr, n) {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().split('T')[0];
+}
+
+async function assignRecipeToWeekplan(recipe, dateStr) {
+  const weekStart = getMondayStr(dateStr);
+  const existing  = await getWeekPlan(weekStart);
+  const DAYS_FULL = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
+
+  const days = (existing?.days?.length === 7)
+    ? existing.days.map(d => ({ ...d }))
+    : Array.from({ length: 7 }, (_, i) => ({
+        date:    addDaysStr(weekStart, i),
+        dayName: DAYS_FULL[i],
+        recipe:  existing?.days?.[i]?.recipe ?? null,
+      }));
+
+  const normalized = {
+    name:     recipe.name,
+    kcal:     recipe.gesamt_kcal,
+    protein:  recipe.protein ?? 0,
+    zutaten:  recipe.zutaten ?? [],
+    anleitung: recipe.anleitung ?? '',
+  };
+
+  const dayObj = days.find(d => d.date === dateStr);
+  if (dayObj) dayObj.recipe = normalized;
+
+  await saveWeekPlan(weekStart, {
+    weekStart,
+    generatedAt: existing?.generatedAt ?? new Date().toISOString(),
+    people:      existing?.people ?? 1,
+    days,
+  });
+}
+
+function openDatePickerModal(recipe, onAssign) {
+  const today    = new Date();
+  const dayNames = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+  const items    = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    return {
+      dateStr: d.toISOString().split('T')[0],
+      label:   i === 0 ? 'Heute' : i === 1 ? 'Morgen' : dayNames[d.getDay()],
+      sub:     `${d.getDate()}.${d.getMonth()+1}.`,
+    };
+  });
+
+  openModal(box => {
+    box.innerHTML += `
+      <div class="modal-title">Zum Wochenplan hinzufügen</div>
+      <div style="padding:0 20px 20px">
+        <div style="font-size:14px;font-weight:600;margin-bottom:2px">${escHtml(recipe.name)}</div>
+        <div style="font-size:13px;color:var(--text-2);margin-bottom:16px">${recipe.gesamt_kcal} kcal</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+          ${items.map(it => `
+            <button class="btn btn-ghost date-pick-btn" data-date="${it.dateStr}"
+              style="flex-direction:column;gap:2px;padding:10px 4px;font-size:11px;height:auto">
+              <span style="font-size:10px;color:var(--text-3)">${it.sub}</span>
+              <span style="font-size:13px;font-weight:700">${it.label}</span>
+            </button>`).join('')}
+        </div>
+      </div>`;
+
+    box.querySelectorAll('.date-pick-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await onAssign(btn.dataset.date);
+        closeModal();
+      });
+    });
+  });
 }

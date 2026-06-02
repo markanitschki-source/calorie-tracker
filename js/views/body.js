@@ -98,15 +98,38 @@ async function paint(container) {
           ${bmr && tdee ? tdeeCard(bmr, tdee, settings.dailyGoal) : ''}
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px 14px 14px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px 14px 0">
           <div class="input-group" style="margin:0">
             <label class="input-label">Zielgewicht (kg)</label>
             <input id="target-input" class="input" type="number" step="0.1" min="30" max="300"
               value="${body.targetWeightKg ?? ''}" inputmode="decimal" placeholder="68">
           </div>
-          <div style="display:flex;align-items:flex-end">
-            <button class="btn btn-primary" id="btn-save-body" style="width:100%">Speichern</button>
+          <div></div>
+        </div>
+
+        <div style="padding:10px 14px 0">
+          <div class="input-label" style="margin-bottom:6px">Körpermaße (cm)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div class="input-group" style="margin:0">
+              <label class="input-label" style="font-size:11px">Taille</label>
+              <input id="waist-input" class="input" type="number" step="0.1" min="40" max="250"
+                value="${body.waistCm ?? ''}" inputmode="decimal" placeholder="80">
+            </div>
+            <div class="input-group" style="margin:0">
+              <label class="input-label" style="font-size:11px">Hüfte</label>
+              <input id="hip-input" class="input" type="number" step="0.1" min="40" max="250"
+                value="${body.hipCm ?? ''}" inputmode="decimal" placeholder="95">
+            </div>
+            <div class="input-group" style="margin:0">
+              <label class="input-label" style="font-size:11px">Brust</label>
+              <input id="chest-input" class="input" type="number" step="0.1" min="40" max="250"
+                value="${body.chestCm ?? ''}" inputmode="decimal" placeholder="100">
+            </div>
           </div>
+        </div>
+
+        <div style="padding:12px 14px 14px">
+          <button class="btn btn-primary" id="btn-save-body" style="width:100%">Speichern</button>
         </div>
 
       </div>
@@ -259,8 +282,11 @@ async function paint(container) {
     const heightCm       = parseInt(hInput.value) || null;
     const ageYears       = parseInt(aInput.value) || null;
     const targetWeightKg = parseFloat(container.querySelector('#target-input').value) || null;
+    const waistCm        = parseFloat(container.querySelector('#waist-input').value) || null;
+    const hipCm          = parseFloat(container.querySelector('#hip-input').value) || null;
+    const chestCm        = parseFloat(container.querySelector('#chest-input').value) || null;
 
-    await saveBodyData({ weightKg, heightCm, ageYears, targetWeightKg, gender: currentGender, activityLevel: currentActivity });
+    await saveBodyData({ weightKg, heightCm, ageYears, targetWeightKg, gender: currentGender, activityLevel: currentActivity, waistCm, hipCm, chestCm });
     if (weightKg) await addWeightEntry(weightKg);
     showToast('Gespeichert ✓');
     await paint(container);

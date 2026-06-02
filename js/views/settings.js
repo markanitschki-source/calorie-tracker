@@ -2,11 +2,13 @@ import { getSettings, saveSettings, PHASES, getProfiles, saveProfiles } from '..
 import { showToast, refresh, openModal, closeModal } from '../app.js';
 import { searchLocal } from '../search.js';
 
-let selectedPhase = 'ausgewogen';
+let selectedPhase   = 'ausgewogen';
+let selectedFasting = null;
 
 export async function renderSettings(container) {
   const [settings, profiles] = await Promise.all([getSettings(), getProfiles()]);
-  selectedPhase = settings.phase ?? 'ausgewogen';
+  selectedPhase   = settings.phase ?? 'ausgewogen';
+  selectedFasting = settings.fastingType ?? null;
   const phase   = PHASES.find(p => p.id === selectedPhase) ?? PHASES[0];
   const activeOffset = settings.defizit != null ? settings.defizit : phase.offset;
   const total   = (settings.dailyGoal ?? 2000) + (settings.activityKcal ?? 0) + activeOffset;
@@ -88,6 +90,38 @@ export async function renderSettings(container) {
           <label class="settings-label" for="water-goal-input">Wasserziel pro Tag (ml)</label>
           <input id="water-goal-input" class="input" type="number" min="500" max="6000"
             value="${settings.waterGoalMl ?? 2500}" inputmode="numeric" placeholder="2500">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="protein-goal-input">Protein-Tagesziel (g) <span style="color:var(--text-3);font-weight:400;font-size:11px">optional</span></label>
+          <input id="protein-goal-input" class="input" type="number" min="0" max="500"
+            value="${settings.proteinGoalG ?? ''}" inputmode="numeric"
+            placeholder="${Math.round(((settings.dailyGoal ?? 2000) + activeOffset) * phase.macros.protein / 100 / 4)}g (Phase)">
+          <div class="settings-hint">Leer = automatisch aus Phase. Gesetzt = Dashboard-Proteinbalken nutzt diesen Wert.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Intervallfasten -->
+    <div class="section" style="padding-top:0">
+      <div class="section-label">⏱ Intervallfasten</div>
+      <div class="card">
+        <div style="padding:12px 12px 6px">
+          <div class="pill-tabs" style="flex-wrap:wrap;gap:6px">
+            ${[
+              { id: null,   label: 'Aus'  },
+              { id: '16:8', label: '16:8' },
+              { id: '18:6', label: '18:6' },
+              { id: '20:4', label: '20:4' },
+              { id: 'omad', label: 'OMAD' },
+            ].map(f => `
+              <button class="pill fasting-pill ${(settings.fastingType ?? null) === f.id ? 'active' : ''}"
+                data-fasting="${f.id ?? ''}">
+                ${f.label}
+              </button>`).join('')}
+          </div>
+        </div>
+        <div id="fasting-desc" style="padding:6px 14px 14px;font-size:12px;color:var(--text-3)">
+          ${fastingDesc(settings.fastingType)}
         </div>
       </div>
     </div>
@@ -250,6 +284,15 @@ export async function renderSettings(container) {
   activityInput.addEventListener('input', updateTotal);
   defizitInput.addEventListener('input', updateTotal);
 
+  container.querySelectorAll('.fasting-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      selectedFasting = pill.dataset.fasting || null;
+      container.querySelectorAll('.fasting-pill').forEach(p =>
+        p.classList.toggle('active', p.dataset.fasting === (selectedFasting ?? '')));
+      container.querySelector('#fasting-desc').textContent = fastingDesc(selectedFasting);
+    });
+  });
+
   // Save settings
   container.querySelector('#btn-save').addEventListener('click', async () => {
     const goal      = parseInt(goalInput.value);
@@ -258,6 +301,7 @@ export async function renderSettings(container) {
     const defRaw    = defizitInput.value.trim();
     const defizit   = defRaw !== '' ? (parseInt(defRaw) || 0) : null;
     if (!goal || goal < 100 || goal > 20000) { showToast('Ungültiges Kalorienziel'); return; }
+    const proteinGoalRaw = container.querySelector('#protein-goal-input').value.trim();
     await saveSettings({
       ...settings,
       dailyGoal:    goal,
@@ -266,6 +310,8 @@ export async function renderSettings(container) {
       apiKey:       container.querySelector('#api-key-input').value.trim(),
       phase:        selectedPhase,
       defizit,
+      proteinGoalG: proteinGoalRaw !== '' ? (parseInt(proteinGoalRaw) || null) : null,
+      fastingType:  selectedFasting,
     });
     showToast('Einstellungen gespeichert ✓');
     refresh();
@@ -586,6 +632,16 @@ function mealSplitText(total) {
 function mealLabel(key) {
   return { fruehstueck: 'Frühstück', mittagessen: 'Mittagessen', abendessen: 'Abendessen',
            snack: 'Snack', getraenke: 'Getränk' }[key] ?? key;
+}
+
+function fastingDesc(type) {
+  const m = {
+    '16:8': '16h Fasten · 8h Essensfenster — z.B. 12–20 Uhr essen.',
+    '18:6': '18h Fasten · 6h Essensfenster — z.B. 14–20 Uhr essen.',
+    '20:4': '20h Fasten · 4h Essensfenster — z.B. 16–20 Uhr essen.',
+    'omad': '23h Fasten · 1 Mahlzeit pro Tag.',
+  };
+  return type ? m[type] ?? '' : 'Kein Intervallfasten aktiv.';
 }
 
 function escHtml(s) {

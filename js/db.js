@@ -84,12 +84,20 @@ export const PHASES = [
 
 // ── Settings ──────────────────────────────────────────────
 export async function getSettings() {
-  const defaults = { dailyGoal: 2000, apiKey: '', activityKcal: 0, phase: 'ausgewogen', waterGoalMl: 2500, routine: [], defizit: null };
+  const defaults = { dailyGoal: 2000, apiKey: '', activityKcal: 0, phase: 'ausgewogen', waterGoalMl: 2500, routine: [], defizit: null, proteinGoalG: null, fastingType: null };
   const saved    = await get(pk('settings'));
   return { ...defaults, ...saved };
 }
 export async function saveSettings(s) {
   await set(pk('settings'), s);
+}
+
+// ── Fasting ───────────────────────────────────────────────
+export async function getFastingState() {
+  return (await get(pk('fasting'))) ?? { active: false, startTime: null, type: null };
+}
+export async function saveFastingState(state) {
+  await set(pk('fasting'), state);
 }
 
 // ── Water Tracking ────────────────────────────────────────
