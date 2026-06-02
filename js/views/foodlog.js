@@ -342,8 +342,15 @@ function openAmountModal(product, getMeal) {
           <input id="amount-input" class="input" type="number" min="1" max="2000"
             value="${defaultAmount}" inputmode="numeric">
         </div>
-        <div id="kcal-preview" style="text-align:center;font-size:22px;font-weight:800;color:var(--accent);margin-bottom:16px">
-          ${Math.round(product.kcal_100g * defaultAmount / 100)} kcal
+        <div id="kcal-preview" style="text-align:center;margin-bottom:16px">
+          <div style="font-size:26px;font-weight:800;color:var(--accent)" id="prev-kcal">
+            ${Math.round(product.kcal_100g * defaultAmount / 100)} kcal
+          </div>
+          <div style="font-size:13px;color:var(--text-2);margin-top:3px" id="prev-macros">
+            P: ${Math.round((product.protein_100g??0)*defaultAmount/100*10)/10}g
+            &nbsp;·&nbsp; F: ${Math.round((product.fat_100g??0)*defaultAmount/100*10)/10}g
+            &nbsp;·&nbsp; KH: ${Math.round((product.carbs_100g??0)*defaultAmount/100*10)/10}g
+          </div>
         </div>
         <button class="btn btn-primary" id="btn-confirm-add">Zum Tracker hinzufügen</button>
       </div>`;
@@ -354,7 +361,11 @@ function openAmountModal(product, getMeal) {
 
     const updatePreview = () => {
       const g = parseFloat(amountInput.value) || 0;
-      preview.textContent = `${Math.round(product.kcal_100g * g / 100)} kcal`;
+      box.querySelector('#prev-kcal').textContent = `${Math.round(product.kcal_100g * g / 100)} kcal`;
+      box.querySelector('#prev-macros').innerHTML =
+        `P: ${Math.round((product.protein_100g??0)*g/100*10)/10}g` +
+        `&nbsp;·&nbsp; F: ${Math.round((product.fat_100g??0)*g/100*10)/10}g` +
+        `&nbsp;·&nbsp; KH: ${Math.round((product.carbs_100g??0)*g/100*10)/10}g`;
     };
 
     pills.forEach(btn => {
