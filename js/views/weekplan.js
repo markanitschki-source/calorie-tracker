@@ -136,11 +136,16 @@ async function paint(container) {
       const [freshDisliked, freshSettings] = await Promise.all([
         getDislikedIngredients(), getSettings(),
       ]);
-      const freshPhase = PHASES.find(p => p.id === (freshSettings.phase ?? 'ausgewogen')) ?? PHASES[0];
-      const recipes    = await generateWeeklyMeals(freshSettings.apiKey, {
+      const freshPhase  = PHASES.find(p => p.id === (freshSettings.phase ?? 'ausgewogen')) ?? PHASES[0];
+      const freshOffset = freshSettings.defizit != null ? freshSettings.defizit : freshPhase.offset;
+      const totalBudget = (freshSettings.dailyGoal ?? 2000) + (freshSettings.activityKcal ?? 0) + freshOffset;
+      const routineKcal = (freshSettings.routine ?? []).reduce((s, r) =>
+        s + Math.round((r.kcal_100g ?? 0) * r.amount / 100), 0);
+      const dinnerKcal  = Math.max(400, totalBudget - routineKcal);
+      const recipes     = await generateWeeklyMeals(freshSettings.apiKey, {
         phase:      freshPhase,
         disliked:   freshDisliked,
-        dinnerKcal: 1100,
+        dinnerKcal,
         people:     peopleCount,
       });
       const plan = {
