@@ -80,7 +80,7 @@ async function paint(container) {
       ${weekDates.map((date, i) => {
         const recipe  = weekPlan?.days?.[i]?.recipe ?? null;
         const isToday = date === todayStr;
-        return dayCard(date, DAYS_SHORT[i], DAYS_FULL[i], recipe, isToday, weekPlan?.people ?? 1);
+        return dayCard(date, DAYS_SHORT[i], DAYS_FULL[i], recipe, isToday, weekPlan?.people ?? 1, settings.routine ?? []);
       }).join('')}
     </div>
 
@@ -236,11 +236,47 @@ async function paint(container) {
 }
 
 // ── Day Card ──────────────────────────────────────────────
-function dayCard(date, dayShort, dayFull, recipe, isToday, people) {
-  const d       = new Date(date + 'T12:00:00');
-  const dateStr = `${d.getDate()}. ${MONTHS[d.getMonth()]}`;
-  const total   = 300 + 300 + (recipe?.kcal ?? 0);
-  const pLabel  = people > 1 ? ` (${people}×)` : '';
+function dayCard(date, dayShort, dayFull, recipe, isToday, people, routine) {
+  const d          = new Date(date + 'T12:00:00');
+  const dateStr    = `${d.getDate()}. ${MONTHS[d.getMonth()]}`;
+  const pLabel     = people > 1 ? ` (${people}×)` : '';
+
+  const routineKcal = routine.reduce((sum, r) =>
+    sum + Math.round((r.kcal_100g ?? 0) * r.amount / 100), 0);
+  const total = routineKcal + (recipe?.kcal ?? 0);
+
+  const MEAL_ICONS = {
+    fruehstueck: '🌅', mittagessen: '☀️', abendessen: '🌙',
+    snack: '🍎', getraenke: '🥤',
+  };
+  const MEAL_LABELS = {
+    fruehstueck: 'Frühstück', mittagessen: 'Mittagessen', abendessen: 'Abendessen',
+    snack: 'Snack', getraenke: 'Getränk',
+  };
+
+  const routineRows = routine.length === 0
+    ? `<div style="padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-3)">
+        Keine Routine — in Einstellungen hinzufügen
+       </div>`
+    : routine.map(r => {
+        const kcal    = Math.round((r.kcal_100g    ?? 0) * r.amount / 100);
+        const protein = Math.round((r.protein_100g ?? 0) * r.amount / 100 * 10) / 10;
+        const fat     = Math.round((r.fat_100g     ?? 0) * r.amount / 100 * 10) / 10;
+        const carbs   = Math.round((r.carbs_100g   ?? 0) * r.amount / 100 * 10) / 10;
+        const icon    = MEAL_ICONS[r.meal_type]  ?? '🍽';
+        const label   = MEAL_LABELS[r.meal_type] ?? r.meal_type;
+        return `
+        <div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+          <span style="font-size:18px">${icon}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600">${escHtml(r.name)}</div>
+            <div style="font-size:11px;color:var(--text-3)">
+              ${r.amount}g · ${label} · P: ${protein}g · F: ${fat}g · KH: ${carbs}g
+            </div>
+          </div>
+          <div style="font-size:13px;font-weight:700;color:var(--accent);flex-shrink:0">${kcal} kcal</div>
+        </div>`;
+      }).join('');
 
   return `
     <div class="day-card card" style="margin-bottom:10px${isToday ? ';border-color:var(--accent);border-width:2px' : ''}">
@@ -252,23 +288,7 @@ function dayCard(date, dayShort, dayFull, recipe, isToday, people) {
         <div style="font-size:12px;color:var(--text-3)">${dateStr}</div>
       </div>
 
-      <div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
-        <span style="font-size:18px">🥤</span>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:600">More Protein Shake</div>
-          <div style="font-size:11px;color:var(--text-3)">mit Mandelmilch · Frühstück</div>
-        </div>
-        <div style="font-size:13px;font-weight:700;color:var(--accent)">300 kcal</div>
-      </div>
-
-      <div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
-        <span style="font-size:18px">🥤</span>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:600">More Clear Protein</div>
-          <div style="font-size:11px;color:var(--text-3)">mit Wasser · Mittagessen</div>
-        </div>
-        <div style="font-size:13px;font-weight:700;color:var(--accent)">300 kcal</div>
-      </div>
+      ${routineRows}
 
       ${recipe ? `
       <div>

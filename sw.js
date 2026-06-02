@@ -1,4 +1,4 @@
-const CACHE = 'kalotrack-v13';
+const CACHE = 'kalotrack-v14';
 const ASSETS = [
   './',
   './index.html',
