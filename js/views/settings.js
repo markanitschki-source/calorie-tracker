@@ -92,18 +92,29 @@ export async function renderSettings(container) {
           <div style="padding:14px;font-size:13px;color:var(--text-3);text-align:center">
             Noch keine Routine-Einträge.<br>Häufig getrackte Lebensmittel hier speichern.
           </div>` :
-          routine.map((item, i) => `
+          routine.map((item, i) => {
+            const kcal    = Math.round((item.kcal_100g    ?? 0) * item.amount / 100);
+            const protein = Math.round((item.protein_100g ?? 0) * item.amount / 100 * 10) / 10;
+            const fat     = Math.round((item.fat_100g     ?? 0) * item.amount / 100 * 10) / 10;
+            const carbs   = Math.round((item.carbs_100g   ?? 0) * item.amount / 100 * 10) / 10;
+            return `
             <div class="routine-item-row">
               <div style="flex:1;min-width:0">
                 <div class="routine-item-name">${escHtml(item.name)}</div>
                 <div class="routine-item-meta">
-                  ${item.amount}g · ${Math.round((item.kcal_100g ?? 0) * item.amount / 100)} kcal
+                  ${item.amount}g · <strong style="color:var(--accent)">${kcal} kcal</strong>
+                  · P: ${protein}g · F: ${fat}g · KH: ${carbs}g
                   · ${mealLabel(item.meal_type)}
                 </div>
               </div>
-              <button class="btn btn-ghost btn-sm" data-del-routine="${i}"
-                style="padding:4px 8px;flex-shrink:0;color:var(--red)">✕</button>
-            </div>`).join('')}
+              <div style="display:flex;gap:4px;flex-shrink:0">
+                <button class="btn btn-ghost btn-sm" data-edit-routine="${i}"
+                  style="padding:4px 8px">✏️</button>
+                <button class="btn btn-ghost btn-sm" data-del-routine="${i}"
+                  style="padding:4px 8px;color:var(--red)">✕</button>
+              </div>
+            </div>`;
+          }).join('')}
         <div style="padding:8px 12px 12px">
           <button class="btn btn-ghost btn-sm" id="btn-add-routine" style="width:100%">
             + Routine-Eintrag hinzufügen
@@ -259,7 +270,8 @@ export async function renderSettings(container) {
 
   // Routine delete
   container.querySelectorAll('[data-del-routine]').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
       const idx  = parseInt(btn.dataset.delRoutine);
       const s    = await getSettings();
       const newR = [...(s.routine ?? [])];
@@ -267,6 +279,24 @@ export async function renderSettings(container) {
       await saveSettings({ ...s, routine: newR });
       showToast('Eintrag entfernt');
       renderSettings(container);
+    });
+  });
+
+  // Routine edit
+  container.querySelectorAll('[data-edit-routine]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const idx     = parseInt(btn.dataset.editRoutine);
+      const s       = await getSettings();
+      const current = (s.routine ?? [])[idx];
+      if (!current) return;
+      openRoutineModal(async updated => {
+        const newR = [...(s.routine ?? [])];
+        newR[idx]  = { ...current, ...updated };
+        await saveSettings({ ...s, routine: newR });
+        showToast('Routine aktualisiert ✓');
+        renderSettings(container);
+      }, current);
     });
   });
 
@@ -346,57 +376,96 @@ function openProfileModal(profile, onSave) {
   });
 }
 
-// ── Routine Add Modal ─────────────────────────────────────
-function openRoutineModal(onSave) {
+// ── Routine Add / Edit Modal ──────────────────────────────
+function openRoutineModal(onSave, prefill = null) {
+  const isEdit = prefill !== null;
+  const v = f => prefill?.[f] ?? '';
+
   openModal(box => {
+    // Live-Vorschau: kcal / Protein / Fett für eingegebene Menge
     box.innerHTML += `
-      <div class="modal-title">Routine-Eintrag hinzufügen</div>
+      <div class="modal-title">${isEdit ? 'Routine bearbeiten' : 'Routine-Eintrag hinzufügen'}</div>
       <div style="padding:0 20px 20px">
         <div class="input-group">
           <label class="input-label">Name</label>
-          <input id="r-name" class="input" type="text" placeholder="z.B. Protein-Shake">
+          <input id="r-name" class="input" type="text" placeholder="z.B. Protein-Shake"
+            value="${escHtml(v('name'))}">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <div class="input-group">
             <label class="input-label">Menge (g / ml)</label>
-            <input id="r-amount" class="input" type="number" value="100" inputmode="numeric">
+            <input id="r-amount" class="input" type="number"
+              value="${v('amount') || 100}" inputmode="numeric">
           </div>
           <div class="input-group">
             <label class="input-label">kcal / 100g</label>
-            <input id="r-kcal" class="input" type="number" value="0" inputmode="numeric">
+            <input id="r-kcal" class="input" type="number"
+              value="${v('kcal_100g') || 0}" inputmode="numeric">
           </div>
           <div class="input-group">
             <label class="input-label">Protein / 100g</label>
-            <input id="r-protein" class="input" type="number" value="0" inputmode="decimal">
+            <input id="r-protein" class="input" type="number"
+              value="${v('protein_100g') || 0}" inputmode="decimal" step="0.1">
           </div>
           <div class="input-group">
             <label class="input-label">Fett / 100g</label>
-            <input id="r-fat" class="input" type="number" value="0" inputmode="decimal">
+            <input id="r-fat" class="input" type="number"
+              value="${v('fat_100g') || 0}" inputmode="decimal" step="0.1">
           </div>
+          <div class="input-group">
+            <label class="input-label">Kohlenhydrate / 100g</label>
+            <input id="r-carbs" class="input" type="number"
+              value="${v('carbs_100g') || 0}" inputmode="decimal" step="0.1">
+          </div>
+        </div>
+        <div id="r-preview" style="
+          background:var(--accent-dim);border-radius:var(--radius-sm);
+          padding:10px 12px;margin:4px 0 12px;font-size:13px;color:var(--text-2)">
         </div>
         <div class="input-group">
           <label class="input-label">Mahlzeit</label>
           <select id="r-meal" class="input">
-            <option value="fruehstueck">Frühstück</option>
-            <option value="mittagessen">Mittagessen</option>
-            <option value="abendessen">Abendessen</option>
-            <option value="snack">Snack</option>
-            <option value="getraenke">Getränk</option>
+            <option value="fruehstueck"  ${v('meal_type')==='fruehstueck'  ?'selected':''}>Frühstück</option>
+            <option value="mittagessen"  ${v('meal_type')==='mittagessen'  ?'selected':''}>Mittagessen</option>
+            <option value="abendessen"   ${v('meal_type')==='abendessen'   ?'selected':''}>Abendessen</option>
+            <option value="snack"        ${v('meal_type')==='snack'        ?'selected':''}>Snack</option>
+            <option value="getraenke"    ${v('meal_type')==='getraenke'    ?'selected':''}>Getränk</option>
           </select>
         </div>
-        <button class="btn btn-primary" id="btn-r-save" style="margin-top:4px">Hinzufügen</button>
+        <button class="btn btn-primary" id="btn-r-save" style="margin-top:4px">
+          ${isEdit ? 'Speichern' : 'Hinzufügen'}
+        </button>
       </div>`;
+
+    const updatePreview = () => {
+      const g  = parseFloat(box.querySelector('#r-amount').value)  || 0;
+      const k  = parseFloat(box.querySelector('#r-kcal').value)    || 0;
+      const p  = parseFloat(box.querySelector('#r-protein').value) || 0;
+      const f  = parseFloat(box.querySelector('#r-fat').value)     || 0;
+      const c  = parseFloat(box.querySelector('#r-carbs').value)   || 0;
+      const pr = box.querySelector('#r-preview');
+      pr.innerHTML = `
+        <strong style="color:var(--accent)">${Math.round(k*g/100)} kcal</strong>
+        &nbsp;·&nbsp; P: ${Math.round(p*g/100*10)/10}g
+        &nbsp;·&nbsp; F: ${Math.round(f*g/100*10)/10}g
+        &nbsp;·&nbsp; KH: ${Math.round(c*g/100*10)/10}g
+        &nbsp;<span style="color:var(--text-3);font-size:11px">(für ${g}g)</span>`;
+    };
+
+    ['#r-amount','#r-kcal','#r-protein','#r-fat','#r-carbs'].forEach(sel =>
+      box.querySelector(sel).addEventListener('input', updatePreview));
+    updatePreview();
 
     box.querySelector('#btn-r-save').addEventListener('click', () => {
       const name = box.querySelector('#r-name').value.trim();
       if (!name) { showToast('Bitte Name eingeben'); return; }
       const item = {
         name,
-        amount:       parseInt(box.querySelector('#r-amount').value) || 100,
-        kcal_100g:    parseFloat(box.querySelector('#r-kcal').value)    || 0,
-        protein_100g: parseFloat(box.querySelector('#r-protein').value) || 0,
-        carbs_100g:   0,
-        fat_100g:     parseFloat(box.querySelector('#r-fat').value)     || 0,
+        amount:       parseInt(box.querySelector('#r-amount').value)   || 100,
+        kcal_100g:    parseFloat(box.querySelector('#r-kcal').value)   || 0,
+        protein_100g: parseFloat(box.querySelector('#r-protein').value)|| 0,
+        carbs_100g:   parseFloat(box.querySelector('#r-carbs').value)  || 0,
+        fat_100g:     parseFloat(box.querySelector('#r-fat').value)    || 0,
         meal_type:    box.querySelector('#r-meal').value,
       };
       closeModal();

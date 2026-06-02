@@ -144,7 +144,7 @@ export async function renderRecipes(container) {
             placeholder="${hasKey ? 'Frage stellen…' : 'API-Key benötigt'}"
             ${!hasKey ? 'disabled' : ''}>
           <button class="btn btn-primary" id="btn-chat-send" ${!hasKey ? 'disabled' : ''}
-            style="white-space:nowrap;flex-shrink:0">Senden</button>
+            style="white-space:nowrap;flex-shrink:0;width:auto;min-width:80px">Senden</button>
         </div>
       </div>
     </div>
