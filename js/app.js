@@ -5,7 +5,7 @@ import { renderShopping }   from './views/shopping.js';
 import { renderWeekplan }   from './views/weekplan.js';
 import { renderBody }       from './views/body.js';
 import { renderSettings }   from './views/settings.js';
-import { initDB, getProfiles, getActiveProfileId, switchProfile } from './db.js';
+import { initDB, migrateV4, getProfiles, getActiveProfileId, switchProfile } from './db.js';
 
 const views = {
   dashboard: renderDashboard,
@@ -71,6 +71,8 @@ async function initProfileSwitcher() {
 
   const updateBtn = async () => {
     const profiles = await getProfiles();
+    if (profiles.length <= 1) { btn.style.display = 'none'; return; }
+    btn.style.display = '';
     const active   = profiles.find(p => p.id === getActiveProfileId()) ?? profiles[0];
     if (active) {
       btn.textContent     = active.emoji;
@@ -118,6 +120,7 @@ async function initProfileSwitcher() {
 // ── Init ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   await initDB();
+  await migrateV4();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});

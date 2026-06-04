@@ -64,6 +64,16 @@ export async function initDB() {
   await set('_kt_v3', true);
 }
 
+// ── DB Migration v4 (one-time) ────────────────────────────
+export async function migrateV4() {
+  if (await get('_kt_v4')) return;
+  const profiles = await get('profiles');
+  if (Array.isArray(profiles) && profiles.length > 1) {
+    await set('profiles', profiles.filter(p => p.id === 'felix'));
+  }
+  await set('_kt_v4', true);
+}
+
 // ── Profiles ──────────────────────────────────────────────
 export async function getProfiles() {
   return (await get('profiles')) ?? [];
