@@ -73,6 +73,49 @@ function normalize(s) {
     .trim();
 }
 
+export function guessEmoji(name) {
+  const n = String(name).toLowerCase();
+  if (/shake|protein|whey|casein|pulver|powder/.test(n)) return '🥤';
+  if (/riegel|bar\b|sportriegel/.test(n))                return '🍫';
+  if (/ei\b|eier|egg/.test(n))                          return '🥚';
+  if (/hafer|oat|müsli|muesli|granola|porridge/.test(n))return '🌾';
+  if (/hähnchen|hühnchen|chicken|pute|turkey/.test(n))  return '🍗';
+  if (/steak|rind|beef|hackfleisch|schwein|pork|wurst|schinken|speck/.test(n)) return '🥩';
+  if (/lachs|salmon|thunfisch|tuna|fisch|fish|garnele|meeresfrüchte/.test(n)) return '🐟';
+  if (/brot|toast|brötchen|bread|croissant|bagel/.test(n)) return '🍞';
+  if (/nudel|pasta|spaghetti|noodle/.test(n))           return '🍝';
+  if (/reis|rice/.test(n))                              return '🍚';
+  if (/kartoffel|potato/.test(n))                       return '🥔';
+  if (/joghurt|yogurt|quark/.test(n))                   return '🥛';
+  if (/milch|milk/.test(n))                             return '🥛';
+  if (/käse|cheese/.test(n))                            return '🧀';
+  if (/butter|margarine/.test(n))                       return '🧈';
+  if (/apfel|apple/.test(n))                            return '🍎';
+  if (/banane|banana/.test(n))                          return '🍌';
+  if (/beere|berry|erdbeere|himbeere|blaubeere/.test(n))return '🫐';
+  if (/orange|mandarine/.test(n))                       return '🍊';
+  if (/zitrone|lemon/.test(n))                          return '🍋';
+  if (/mango/.test(n))                                  return '🥭';
+  if (/avocado/.test(n))                                return '🥑';
+  if (/brokkoli|broccoli|spinat|spinach|salat|lettuce|gurke|zucchini|paprika|tomate|karotte|sellerie|kohl/.test(n)) return '🥦';
+  if (/nuss|nüsse|mandel|almond|cashew|walnuss|erdnuss|peanut/.test(n)) return '🥜';
+  if (/öl|oil|olivenöl/.test(n))                        return '🫙';
+  if (/kaffee|coffee|espresso|cappuccino|latte/.test(n))return '☕';
+  if (/tee|tea/.test(n))                                return '🍵';
+  if (/saft|juice/.test(n))                             return '🧃';
+  if (/wasser|water/.test(n))                           return '💧';
+  if (/bier|beer/.test(n))                              return '🍺';
+  if (/wein|wine/.test(n))                              return '🍷';
+  if (/suppe|soup|eintopf/.test(n))                     return '🍲';
+  if (/pizza/.test(n))                                  return '🍕';
+  if (/burger/.test(n))                                 return '🍔';
+  if (/sandwich|wrap/.test(n))                          return '🥪';
+  if (/schokolade|chocolate/.test(n))                   return '🍫';
+  if (/kuchen|cake|muffin|cookie|keks/.test(n))         return '🍰';
+  if (/linsen|kichererbse|bohnen|tofu/.test(n))         return '🫘';
+  return '🍽️';
+}
+
 export function searchLocal(query) {
   if (!query || query.length < 2) return [];
 

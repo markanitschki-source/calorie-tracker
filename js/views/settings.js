@@ -1,6 +1,6 @@
 import { getSettings, saveSettings, PHASES, getProfiles, saveProfiles } from '../db.js';
 import { showToast, refresh, openModal, closeModal, VERSION } from '../app.js';
-import { searchLocal } from '../search.js';
+import { searchLocal, guessEmoji } from '../search.js';
 
 let selectedPhase   = 'ausgewogen';
 let selectedFasting = null;
@@ -141,6 +141,7 @@ export async function renderSettings(container) {
             const carbs   = Math.round((item.carbs_100g   ?? 0) * item.amount / 100 * 10) / 10;
             return `
             <div class="routine-item-row">
+              <div style="font-size:22px;margin-right:10px;flex-shrink:0">${guessEmoji(item.name)}</div>
               <div style="flex:1;min-width:0">
                 <div class="routine-item-name">${escHtml(item.name)}</div>
                 <div class="routine-item-meta">

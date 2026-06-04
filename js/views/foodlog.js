@@ -1,7 +1,7 @@
 import { searchFood, lookupBarcode } from '../api.js';
 import { addFoodEntry, getFoodHistory, updateFoodHistory, getSettings } from '../db.js';
 import { openModal, closeModal, showToast, navigate } from '../app.js';
-import { searchLocal } from '../search.js';
+import { searchLocal, guessEmoji } from '../search.js';
 
 let debounceTimer;
 
@@ -52,6 +52,7 @@ export async function renderFoodLog(container) {
           const safe = JSON.stringify({ ...r, serving_quantity: r.amount }).replace(/'/g, "&#39;");
           return `
           <div class="search-result" data-routine='${safe}' data-meal-type="${r.meal_type ?? 'fruehstueck'}">
+            <div class="card-icon" style="font-size:22px;margin-right:10px;flex-shrink:0">${guessEmoji(r.name)}</div>
             <div class="sr-info">
               <div class="sr-name">${escHtml(r.name)}</div>
               <div class="sr-brand">${meal.icon} ${meal.label} · ${r.amount}g</div>
