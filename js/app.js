@@ -1,4 +1,4 @@
-export const VERSION = '1.8.0';
+export const VERSION = '1.9.0';
 
 import { renderDashboard }  from './views/dashboard.js';
 import { renderFoodLog }    from './views/foodlog.js';
@@ -125,7 +125,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   await migrateV4();
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    const reg = await navigator.serviceWorker.register('./sw.js').catch(() => null);
+    if (reg) {
+      const notifyUpdate = () => {
+        if (reg.waiting) {
+          const toast = document.getElementById('toast');
+          toast.innerHTML = 'Update verfügbar — <strong style="cursor:pointer;text-decoration:underline" id="sw-reload">Neu laden</strong>';
+          toast.classList.add('visible');
+          document.getElementById('sw-reload')?.addEventListener('click', () => {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
+          });
+        }
+      };
+      reg.addEventListener('updatefound', () => {
+        reg.installing?.addEventListener('statechange', e => {
+          if (e.target.state === 'installed') notifyUpdate();
+        });
+      });
+      if (reg.waiting) notifyUpdate();
+    }
   }
 
   document.querySelectorAll('.nav-btn').forEach(btn => {
