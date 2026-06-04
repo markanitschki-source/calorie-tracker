@@ -1,5 +1,5 @@
 import { searchFood, lookupBarcode } from '../api.js';
-import { addFoodEntry, getFoodHistory, updateFoodHistory } from '../db.js';
+import { addFoodEntry, getFoodHistory, updateFoodHistory, getSettings } from '../db.js';
 import { openModal, closeModal, showToast, navigate } from '../app.js';
 import { searchLocal } from '../search.js';
 
@@ -19,7 +19,8 @@ export async function renderFoodLog(container) {
   const preselected = window._preselectedMeal ?? 'fruehstueck';
   window._preselectedMeal = null;
 
-  const history    = await getFoodHistory();
+  const [history, settings] = await Promise.all([getFoodHistory(), getSettings()]);
+  const routine    = settings.routine ?? [];
   const hasHistory = history.length > 0;
   const topItems   = hasHistory ? history.slice(0, 8) : quickAddItems;
 
@@ -40,6 +41,26 @@ export async function renderFoodLog(container) {
           </button>`).join('')}
       </div>
     </div>
+
+    ${routine.length ? `
+    <div class="section" style="padding-top:0">
+      <div class="section-label">Routine</div>
+      <div class="card" id="routine-list">
+        ${routine.map((r, i) => {
+          const meal = MEAL_TYPES.find(m => m.key === r.meal_type) ?? MEAL_TYPES[0];
+          const kcal = Math.round((r.kcal_100g ?? 0) * r.amount / 100);
+          const safe = JSON.stringify({ ...r, serving_quantity: r.amount }).replace(/'/g, "&#39;");
+          return `
+          <div class="search-result" data-routine='${safe}' data-meal-type="${r.meal_type ?? 'fruehstueck'}">
+            <div class="sr-info">
+              <div class="sr-name">${escHtml(r.name)}</div>
+              <div class="sr-brand">${meal.icon} ${meal.label} · ${r.amount}g</div>
+            </div>
+            <div class="sr-kcal">${kcal}<span> kcal</span></div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : ''}
 
     <div class="section" style="padding-top:0">
       <button class="btn btn-primary" id="btn-scan" style="margin-bottom:10px">
@@ -102,6 +123,17 @@ export async function renderFoodLog(container) {
       container.querySelectorAll('.meal-pill').forEach(p =>
         p.classList.toggle('active', p.dataset.meal === selectedMeal));
     });
+  });
+
+  container.querySelector('#routine-list')?.addEventListener('click', e => {
+    const row = e.target.closest('[data-routine]');
+    if (!row) return;
+    const item     = JSON.parse(row.dataset.routine);
+    const mealType = row.dataset.mealType;
+    selectedMeal = mealType;
+    container.querySelectorAll('.meal-pill').forEach(p =>
+      p.classList.toggle('active', p.dataset.meal === mealType));
+    openAmountModal(item, () => selectedMeal);
   });
 
   const input     = container.querySelector('#search-input');
