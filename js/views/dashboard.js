@@ -262,10 +262,16 @@ export async function renderDashboard(container) {
           <div class="meal-entries" id="entries-${m.key}" style="${entries.length === 0 ? 'display:none' : ''}">
             ${entries.map(e => entryRow(e)).join('')}
           </div>
-          <div style="padding:6px 14px 10px">
-            <button class="btn btn-ghost btn-sm" data-add-meal="${m.key}" style="width:100%;font-size:13px">
+          <div style="padding:6px 14px 10px;display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" data-add-meal="${m.key}" style="flex:1;font-size:13px">
               + ${m.label} hinzufügen
             </button>
+            ${(settings.routine ?? []).some(r => r.meal_type === m.key) ? `
+            <button class="btn btn-ghost btn-sm" data-routine-meal="${m.key}"
+              style="flex-shrink:0;background:var(--accent-dim);color:var(--accent);border-color:var(--accent);font-size:13px;padding:0 12px"
+              title="Routine-Einträge für ${m.label} hinzufügen">
+              ⚡ Routine
+            </button>` : ''}
           </div>
         </div>`;
       }).join('')}
@@ -325,6 +331,22 @@ export async function renderDashboard(container) {
       e.stopPropagation();
       window._preselectedMeal = btn.dataset.addMeal;
       navigate('log');
+    });
+  });
+
+  // Routine per Mahlzeit
+  container.querySelectorAll('[data-routine-meal]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const mealKey = btn.dataset.routineMeal;
+      const s       = await getSettings();
+      const items   = (s.routine ?? []).filter(r => r.meal_type === mealKey);
+      for (const item of items) {
+        const { id: _id, ...entry } = item;
+        await addFoodEntry({ ...entry });
+      }
+      showToast(`⚡ ${items.length} Routine-Eintrag${items.length !== 1 ? 'e' : ''} hinzugefügt`);
+      refresh();
     });
   });
 
