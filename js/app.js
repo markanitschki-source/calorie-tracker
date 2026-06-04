@@ -1,12 +1,13 @@
-export const VERSION = '1.9.5';
+export const VERSION = '2.0.0';
 
 import { renderDashboard }  from './views/dashboard.js';
 import { renderFoodLog }    from './views/foodlog.js';
 import { renderRecipes }    from './views/recipes.js';
 import { renderShopping }   from './views/shopping.js';
 import { renderWeekplan }   from './views/weekplan.js';
-import { renderBody }       from './views/body.js';
-import { renderSettings }   from './views/settings.js';
+import { renderBody }         from './views/body.js';
+import { renderSettings }     from './views/settings.js';
+import { renderAchievements } from './views/achievements.js';
 import { initDB, migrateV4, getProfiles, getActiveProfileId, switchProfile } from './db.js';
 
 const views = {
@@ -15,8 +16,9 @@ const views = {
   recipes:   renderRecipes,
   shopping:  renderShopping,
   weekplan:  renderWeekplan,
-  body:      renderBody,
-  settings:  renderSettings,
+  body:         renderBody,
+  achievements: renderAchievements,
+  settings:     renderSettings,
 };
 
 let currentView = 'dashboard';

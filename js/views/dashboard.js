@@ -3,7 +3,7 @@ import {
   getSettings, getLogForDate, removeFoodEntry, PHASES,
   getStreak, getWaterToday, addWater, setWaterToday,
   copyDayEntries, addFoodEntry, getProfiles, getActiveProfileId,
-  getFastingState, saveFastingState,
+  getFastingState, saveFastingState, getAchData,
 } from '../db.js';
 import { navigate, showToast, refresh } from '../app.js';
 
@@ -84,6 +84,17 @@ export async function renderDashboard(container) {
     getStreak(), getWaterToday(), getProfiles(), getFastingState(),
   ]);
 
+  const { checkDailyAwards, getLevelInfo } = await import('../achievements.js');
+  const dailyResult = await checkDailyAwards({
+    yesterdayDate: yesterday(),
+    yesterdaySum:  sumLog(yesterdayLog),
+    settings,
+    phase: PHASES.find(p => p.id === (settings.phase ?? 'ausgewogen')) ?? PHASES[0],
+    streak,
+  });
+  const achData  = dailyResult.achData;
+  const levelInfo = getLevelInfo(achData.xp);
+
   const pid            = getActiveProfileId();
   const profile        = profiles.find(p => p.id === pid) ?? { name: pid, emoji: '👤', color: '#6C63FF' };
   const phase          = PHASES.find(p => p.id === (settings.phase ?? 'ausgewogen')) ?? PHASES[0];
@@ -126,6 +137,15 @@ export async function renderDashboard(container) {
         <div class="greeting-main">${greeting()}, ${profile.name}! ${profile.emoji}</div>
         <div class="greeting-sub">${dateStr} · Phase: <strong style="color:var(--accent)">${phase.label}</strong></div>
       </div>
+    </div>
+
+    <!-- XP Bar -->
+    <div style="display:flex;align-items:center;gap:10px;padding:0 20px 8px">
+      <span style="font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap">Lv.${levelInfo.current.level}</span>
+      <div style="flex:1;height:4px;background:var(--surface-3);border-radius:99px;overflow:hidden">
+        <div style="height:100%;width:${levelInfo.progress}%;background:var(--accent);border-radius:99px"></div>
+      </div>
+      <span style="font-size:11px;color:var(--text-3);white-space:nowrap">${achData.xp} XP</span>
     </div>
 
     <!-- Streak -->
@@ -346,6 +366,13 @@ export async function renderDashboard(container) {
     </div>
   `;
 
+  // Show daily award toasts
+  if (dailyResult.leveledUp) {
+    setTimeout(() => showToast(`🎉 Level ${getLevelInfo(achData.xp).current.level} — ${getLevelInfo(achData.xp).current.label}!`), 600);
+  } else if (dailyResult.unlocked?.length) {
+    setTimeout(() => showToast(`🏆 ${dailyResult.unlocked[0].icon} ${dailyResult.unlocked[0].label} freigeschaltet!`), 600);
+  }
+
   // Animate ring after render
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -404,6 +431,14 @@ export async function renderDashboard(container) {
     container.querySelector('.water-bar-fill').style.width = `${pct}%`;
     container.querySelector('.water-value').textContent =
       `${(newMl / 1000).toFixed(2).replace('.', ',')}L / ${(goal / 1000).toFixed(1).replace('.', ',')}L`;
+    if (newMl >= goal) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const { onWaterGoalHit } = await import('../achievements.js');
+      const r = await onWaterGoalHit(todayStr);
+      if (r.leveledUp)           showToast(`🎉 Level ${r.levelInfo.current.level} — ${r.levelInfo.current.label}!`);
+      else if (r.unlocked?.length) showToast(`🏆 ${r.unlocked[0].icon} ${r.unlocked[0].label} freigeschaltet!`);
+      else if (r.xpEarned)         showToast(`💧 Wasserziel erreicht! +${r.xpEarned} XP`);
+    }
   };
 
   container.querySelector('#btn-water-minus')?.addEventListener('click', async () => {
@@ -430,8 +465,18 @@ export async function renderDashboard(container) {
   container.querySelector('#btn-fast-toggle')?.addEventListener('click', async () => {
     const state = await getFastingState();
     if (state.active) {
+      const GOAL_H  = { '16:8': 16, '18:6': 18, '20:4': 20, 'omad': 23 };
+      const goalH   = GOAL_H[settings.fastingType] ?? 16;
+      const elapsed = state.startTime ? (Date.now() - state.startTime) / 3600000 : 0;
       await saveFastingState({ ...state, active: false, startTime: null });
       showToast('⏹ Fasten gestoppt');
+      if (elapsed >= goalH) {
+        const { onFastingCompleted } = await import('../achievements.js');
+        const r = await onFastingCompleted();
+        if (r.leveledUp)            showToast(`🎉 Level ${r.levelInfo.current.level} — ${r.levelInfo.current.label}!`);
+        else if (r.unlocked?.length) showToast(`🏆 ${r.unlocked[0].icon} ${r.unlocked[0].label} freigeschaltet!`);
+        else                         showToast(`⏱ Fasten abgeschlossen! +${r.xpEarned} XP`);
+      }
     } else {
       await saveFastingState({ type: settings.fastingType, active: true, startTime: Date.now() });
       showToast('▶ Fasten gestartet');

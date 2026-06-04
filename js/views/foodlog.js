@@ -422,8 +422,12 @@ function openAmountModal(product, getMeal) {
       const { count, lastUsed, ...cleanProduct } = product;
       await addFoodEntry({ ...cleanProduct, amount, meal_type: getMeal() });
       await updateFoodHistory(cleanProduct);
+      const { onMealAdded } = await import('../achievements.js');
+      const r = await onMealAdded();
       closeModal();
-      showToast(`${product.name.slice(0, 20)} getrackt`);
+      if (r.leveledUp)            showToast(`🎉 Level ${r.levelInfo.current.level} — ${r.levelInfo.current.label}!`);
+      else if (r.unlocked?.length) showToast(`🏆 ${r.unlocked[0].icon} ${r.unlocked[0].label} freigeschaltet!`);
+      else                         showToast(`${product.name.slice(0, 20)} getrackt +${r.xpEarned} XP`);
       navigate('dashboard');
     });
   });

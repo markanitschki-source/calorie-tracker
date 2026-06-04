@@ -329,3 +329,16 @@ export async function updateFoodHistory(product) {
   history.sort((a, b) => b.count !== a.count ? b.count - a.count : b.lastUsed - a.lastUsed);
   await set(pk('food_history'), history.slice(0, 40));
 }
+
+// ── Achievements ──────────────────────────────────────────
+const _achDefault = () => ({
+  xp: 0,
+  unlocked: [],
+  stats: {
+    totalMeals: 0, daysInGoal: 0, daysInGoalStreak: 0,
+    proteinDaysHit: 0, waterDaysHit: 0, fastingCompleted: 0,
+    recipesGenerated: 0, lastCheckedDate: null, lastWaterGoalDate: null,
+  },
+});
+export async function getAchData()   { return (await get('achievements_data')) ?? _achDefault(); }
+export async function saveAchData(d) { await set('achievements_data', d); }

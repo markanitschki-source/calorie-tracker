@@ -275,6 +275,10 @@ async function runGenerate(container, apiKey, kcal, preference, meals, phase) {
   try {
     const recipes = await generateRecipe(apiKey, { kcal, preference, meals, phase });
     generatedRecipes = recipes;
+    const { onRecipeGenerated } = await import('../achievements.js');
+    const r = await onRecipeGenerated();
+    if (r.leveledUp)            showToast(`🎉 Level ${r.levelInfo.current.level} — ${r.levelInfo.current.label}!`);
+    else if (r.unlocked?.length) showToast(`🏆 ${r.unlocked[0].icon} ${r.unlocked[0].label} freigeschaltet!`);
 
     resultEl.innerHTML = `
       <div class="section" style="padding-top:0">

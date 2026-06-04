@@ -287,8 +287,17 @@ async function paint(container) {
     const chestCm        = parseFloat(container.querySelector('#chest-input').value) || null;
 
     await saveBodyData({ weightKg, heightCm, ageYears, targetWeightKg, gender: currentGender, activityLevel: currentActivity, waistCm, hipCm, chestCm });
-    if (weightKg) await addWeightEntry(weightKg);
-    showToast('Gespeichert ✓');
+    if (weightKg) {
+      await addWeightEntry(weightKg);
+      const history = await getWeightHistory();
+      const { onWeightAdded } = await import('../achievements.js');
+      const r = await onWeightAdded(weightKg, history);
+      if (r.leveledUp)            showToast(`🎉 Level ${r.levelInfo.current.level} — ${r.levelInfo.current.label}!`);
+      else if (r.unlocked?.length) showToast(`🏆 ${r.unlocked[0].icon} ${r.unlocked[0].label} freigeschaltet!`);
+      else                         showToast(`Gespeichert ✓ +${r.xpEarned} XP`);
+    } else {
+      showToast('Gespeichert ✓');
+    }
     await paint(container);
   });
 }
