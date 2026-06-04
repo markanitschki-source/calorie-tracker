@@ -11,9 +11,9 @@ const RING_R    = 75;
 const RING_CIRC = 2 * Math.PI * RING_R;
 
 const MEALS = [
-  { key: 'fruehstueck', label: 'Frühstück',  icon: '🌅', pct: 0.25 },
-  { key: 'mittagessen', label: 'Mittagessen', icon: '☀️', pct: 0.35 },
-  { key: 'abendessen',  label: 'Abendessen',  icon: '🌙', pct: 0.30 },
+  { key: 'fruehstueck', label: 'Frühstück',  icon: '🌅', pct: 0.15 },
+  { key: 'mittagessen', label: 'Mittagessen', icon: '☀️', pct: 0.10 },
+  { key: 'abendessen',  label: 'Abendessen',  icon: '🌙', pct: 0.65 },
   { key: 'snack',       label: 'Snacks',      icon: '🍎', pct: 0.10 },
   { key: 'getraenke',   label: 'Getränke',    icon: '🥤', pct: 0     },
 ];
