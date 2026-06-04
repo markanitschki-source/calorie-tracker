@@ -1,5 +1,5 @@
 import { getSettings, saveSettings, PHASES, getProfiles, saveProfiles } from '../db.js';
-import { showToast, refresh, openModal, closeModal } from '../app.js';
+import { showToast, refresh, openModal, closeModal, VERSION } from '../app.js';
 import { searchLocal } from '../search.js';
 
 let selectedPhase   = 'ausgewogen';
@@ -250,6 +250,11 @@ export async function renderSettings(container) {
           3. Tippe oben rechts auf <strong>„Hinzufügen"</strong>
         </div>
       </div>
+    </div>
+
+    <!-- Version -->
+    <div style="text-align:center;padding:16px 0 32px;color:var(--text-3);font-size:12px;opacity:.5">
+      KaloTrack v${VERSION}
     </div>
   `;
 

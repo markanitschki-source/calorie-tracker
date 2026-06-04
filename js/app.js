@@ -1,3 +1,5 @@
+export const VERSION = '1.8.0';
+
 import { renderDashboard }  from './views/dashboard.js';
 import { renderFoodLog }    from './views/foodlog.js';
 import { renderRecipes }    from './views/recipes.js';
