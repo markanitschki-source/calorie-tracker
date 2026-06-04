@@ -110,6 +110,11 @@ export async function renderDashboard(container) {
   const hasRoutine     = (settings.routine ?? []).length > 0;
   const hasYesterday   = yesterdayTotals.kcal > 50;
 
+  const trackedWeekDays   = weekLogs.filter(d => d.sum.kcal > 50);
+  const weekAvgKcal       = trackedWeekDays.length ? Math.round(trackedWeekDays.reduce((a, d) => a + d.sum.kcal,    0) / trackedWeekDays.length) : 0;
+  const weekAvgProtein    = trackedWeekDays.length ? Math.round(trackedWeekDays.reduce((a, d) => a + d.sum.protein, 0) / trackedWeekDays.length) : 0;
+  const weekConsistencyPct = Math.round(trackedWeekDays.length / 7 * 100);
+
   const months = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
   const now    = new Date();
   const dateStr = `${now.getDate()}. ${months[now.getMonth()]}`;
@@ -285,6 +290,38 @@ export async function renderDashboard(container) {
       </div>` : ''}
     </div>
 
+    <!-- Wochenresümee -->
+    <div class="section">
+      <div class="section-label">📊 Diese Woche</div>
+      <div class="card" style="padding:14px">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+          <div style="text-align:center">
+            <div style="font-size:22px;font-weight:800;color:${trackedWeekDays.length >= 5 ? 'var(--green)' : trackedWeekDays.length >= 3 ? 'var(--orange)' : 'var(--red)'}">${trackedWeekDays.length}/7</div>
+            <div style="font-size:11px;color:var(--text-3)">Tage getrackt</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:22px;font-weight:800;color:${weekAvgKcal > effectiveGoal * 1.1 ? 'var(--red)' : weekAvgKcal > 0 ? 'var(--accent)' : 'var(--text-3)'}">${weekAvgKcal || '–'}</div>
+            <div style="font-size:11px;color:var(--text-3)">Ø kcal/Tag</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:22px;font-weight:800">${weekAvgProtein ? weekAvgProtein + 'g' : '–'}</div>
+            <div style="font-size:11px;color:var(--text-3)">Ø Protein/Tag</div>
+          </div>
+        </div>
+        ${trackedWeekDays.length > 0 ? `
+        <div style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-3);margin-bottom:4px">
+            <span>Konsistenz</span><span>${weekConsistencyPct}%</span>
+          </div>
+          <div style="height:6px;background:var(--surface-3);border-radius:99px;overflow:hidden">
+            <div style="height:100%;width:${weekConsistencyPct}%;background:var(--accent);border-radius:99px"></div>
+          </div>
+        </div>` : '<div style="font-size:13px;color:var(--text-3);text-align:center;margin-bottom:12px">Noch keine Daten diese Woche</div>'}
+        <button class="btn btn-primary" id="btn-weekly-ai" style="width:100%">🤖 KI-Analyse &amp; Tipps</button>
+        <div id="weekly-ai-result"></div>
+      </div>
+    </div>
+
     <!-- Ziel-Info -->
     <div class="section">
       <div class="section-label">Tagesziel</div>
@@ -428,6 +465,52 @@ export async function renderDashboard(container) {
       refresh();
     } else {
       showToast('Gestern keine Einträge');
+    }
+  });
+
+  // Wochenresümee KI-Analyse
+  container.querySelector('#btn-weekly-ai')?.addEventListener('click', async () => {
+    const btn    = container.querySelector('#btn-weekly-ai');
+    const result = container.querySelector('#weekly-ai-result');
+    const s      = await getSettings();
+    if (!s.apiKey) { showToast('API-Key in Einstellungen eintragen'); return; }
+    if (trackedWeekDays.length === 0) { showToast('Erst Mahlzeiten tracken'); return; }
+
+    btn.disabled    = true;
+    btn.textContent = '⏳ Analysiere…';
+    result.innerHTML = '';
+
+    try {
+      const { generateWeeklySummary } = await import('../api.js');
+      const analysis = await generateWeeklySummary(s.apiKey, {
+        weekLogs,
+        dailyGoal: effectiveGoal,
+        phase,
+        profileName: profile.name,
+      });
+
+      result.innerHTML = `
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span style="font-size:28px;font-weight:900;color:var(--accent)">${escHtml(analysis.note ?? '')}</span>
+            <span style="font-size:13px;color:var(--text-2);line-height:1.4">${escHtml(analysis.zusammenfassung ?? '')}</span>
+          </div>
+          ${Array.isArray(analysis.staerken) && analysis.staerken.length ? `
+          <div style="margin-bottom:10px">
+            <div style="font-size:11px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px">✓ Stärken</div>
+            ${analysis.staerken.map(t => `<div style="font-size:13px;color:var(--text-2);padding:3px 0;display:flex;gap:6px"><span>•</span><span>${escHtml(t)}</span></div>`).join('')}
+          </div>` : ''}
+          ${Array.isArray(analysis.verbesserungen) && analysis.verbesserungen.length ? `
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px">→ Tipps nächste Woche</div>
+            ${analysis.verbesserungen.map(t => `<div style="font-size:13px;color:var(--text-2);padding:3px 0;display:flex;gap:6px"><span>→</span><span>${escHtml(t)}</span></div>`).join('')}
+          </div>` : ''}
+        </div>`;
+    } catch (err) {
+      result.innerHTML = `<div style="color:var(--red);font-size:13px;margin-top:8px">Fehler: ${escHtml(err.message)}</div>`;
+    } finally {
+      btn.disabled    = false;
+      btn.textContent = '🔄 Neu analysieren';
     }
   });
 }

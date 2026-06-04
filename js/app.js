@@ -1,4 +1,4 @@
-export const VERSION = '1.9.4';
+export const VERSION = '1.9.5';
 
 import { renderDashboard }  from './views/dashboard.js';
 import { renderFoodLog }    from './views/foodlog.js';

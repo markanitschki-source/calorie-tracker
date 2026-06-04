@@ -135,6 +135,35 @@ Antworte kurz, präzise und auf Deutsch. Maximal 4 Sätze.`;
   return data.content[0].text.trim();
 }
 
+// ── Claude API — Weekly Summary ───────────────────────────
+export async function generateWeeklySummary(apiKey, { weekLogs, dailyGoal, phase, profileName = 'du' }) {
+  const trackedDays = weekLogs.filter(d => d.sum.kcal > 50);
+
+  const daysSummary = weekLogs.map(d => {
+    if (d.sum.kcal < 50) return `${d.date}: nicht getrackt`;
+    const diff   = d.sum.kcal - dailyGoal;
+    const status = diff > 100 ? `+${diff} kcal über Ziel` : diff < -100 ? `${Math.abs(diff)} kcal unter Ziel` : 'im Ziel';
+    return `${d.date}: ${d.sum.kcal} kcal (${status}) · P:${Math.round(d.sum.protein)}g K:${Math.round(d.sum.carbs)}g F:${Math.round(d.sum.fat)}g`;
+  }).join('\n');
+
+  const prompt = `Du bist Ernährungsberater für ${profileName}. Analysiere die letzte Woche und gib konkrete Tipps für nächste Woche.
+
+Wochendaten:
+${daysSummary}
+
+Tagesziel: ${dailyGoal} kcal | Phase: ${phase.label} | Makroziele: P${phase.macros.protein}% K${phase.macros.carbs}% F${phase.macros.fat}%
+Getrackte Tage: ${trackedDays.length}/7
+
+Antworte NUR mit validem JSON ohne Markdown:
+{"note":"A/B/C/D","zusammenfassung":"2-3 Sätze Bewertung","staerken":["was gut lief, max 2 Punkte"],"verbesserungen":["konkrete Tipps nächste Woche, max 3 Punkte"]}`;
+
+  const data  = await _callClaude(apiKey, prompt, 600);
+  const text  = data.content[0].text.trim();
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('Kein JSON erhalten');
+  return JSON.parse(match[0]);
+}
+
 // ── Internal helper ───────────────────────────────────────
 async function _callClaude(apiKey, prompt, maxTokens) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
